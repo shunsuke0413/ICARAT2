@@ -32,6 +32,9 @@ public:
   std::vector<double> densityFilter(const std::vector<double> &design_s,
                                     bool isSens);
 
+  std::vector<double> densityFilter2(const std::vector<double> &design_s,
+                                    bool isSens, int optstep, double mesh_length);
+
   /// update design variable using threshold function
   std::vector<double> threshold(const std::vector<double> &design_s,
                                 double beta, double T);
@@ -62,7 +65,6 @@ Filter<E, N>::Filter(FEM &fem_, std::vector<E> &element_, std::vector<N> &node_,
     : fem(fem_), element(element_), node(node_), radius_(radius),
       numele_(fem.nelx), ID_(fem.nelx), dis_(fem.nelx), dfilters_ds(fem.nelx)
 {
-  assert(abs(node[0].x[0] - node[1].x[0]) <= radius_);
   preNeighbour();
 }
 
@@ -144,6 +146,59 @@ Filter<E, N>::densityFilter(const std::vector<double> &design_s, bool isSens)
       for(int j = 0; j < numele_[i]; j++)
       {
         double weight = radius_ - dis_[i][j];
+        filtered_s[i] += weight * design_s[ID_[i][j]] / dfilters_ds[ID_[i][j]];
+      }
+    }
+  }
+  return filtered_s;
+}
+
+template <class E, class N>
+std::vector<double>
+Filter<E, N>::densityFilter2(const std::vector<double> &design_s, bool isSens, int optstep, double mesh_length)
+{
+  std::vector<double> filtered_s(fem.nelx);
+  double decay_amount = std::max((optstep - 46) * 0.05, 0.0);
+  double radius_now = std::max(radius_ - decay_amount, mesh_length);
+
+  // density filter
+  if(isSens == false)
+  {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for(int i = 0; i < fem.nelx; i++)
+    {
+      double aa = 0.0;
+      double bb = 0.0;
+
+      for(int j = 0; j < numele_[i]; j++)
+      {
+        double weight = radius_now - dis_[i][j];
+        aa += weight;
+        bb += weight * design_s[ID_[i][j]];
+      }
+
+      if(aa < 1.0e-10)
+      {
+        std::cerr << "coefficient aa is too small in filter.hpp." << std::endl;
+        exit(1);
+      }
+      filtered_s[i] = bb / aa;
+      dfilters_ds[i] = aa;
+    }
+  }
+  // density filter's sensitivity
+  else
+  {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for(int i = 0; i < (int)design_s.size(); i++)
+    {
+      for(int j = 0; j < numele_[i]; j++)
+      {
+        double weight = radius_now - dis_[i][j];
         filtered_s[i] += weight * design_s[ID_[i][j]] / dfilters_ds[ID_[i][j]];
       }
     }
