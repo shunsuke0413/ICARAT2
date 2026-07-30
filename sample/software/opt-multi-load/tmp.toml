@@ -1,0 +1,24 @@
+[mesh]
+dimension = 3
+num_surface = 6
+step_path = "/Users/watanabe/Desktop/hexa.step"
+target_length = 10
+type = ["tetra4"]
+
+[boundary_condition]
+dirichlet = [[[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], ["surfaces/surface_4.csv"]]]
+neumann = []
+num_loadcase = 2
+
+[material]
+designs_0 = 0.3
+penalty = 3.0
+poisson = 0.3
+state = "3d"
+type = "Elastic"
+young = [0.02, 200.0]
+
+[this_problem]
+filterR = 20.0
+project_name = "daiki"
+project_path = "/Users/watanabe/Desktop"

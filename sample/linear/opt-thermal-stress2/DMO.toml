@@ -1,0 +1,33 @@
+[mesh]
+dimension = 2
+division = [120, 80, 10]
+length = [60.0, 40.0, 10.0]
+type = "quad4"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 40.0], [0.0, 10.0]]],
+[[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[60.0, 60.0], [0.0, 40.0], [0.0, 10.0]]],
+]
+
+neumann = [
+  [[0.0, -0.1, 0.0], [[29.0, 31.0], [0.0, 0.0], [0.0, 0.0]]],
+]
+
+[material]
+num_mat = 4
+penalty = 3.0
+poisson = 0.3
+state = "plane_stress"
+type = "ThermalStressElastMultiMat"
+young_void = 1.0e-4
+#initial design variables (is also used for volume constraints)
+designs = [0.15, 0.15, 0.15, 0.15]
+#young modulus
+young = [10.0, 20.0, 40.0, 80.0]
+alpha = [10.0e-6, 20.0e-6, 40.0e-6, 80.0e-6]
+
+[this_problem]
+fdm = false
+filterR = 1.0
+deltaT=1.0

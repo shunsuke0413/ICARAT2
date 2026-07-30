@@ -1,0 +1,29 @@
+[mesh]
+dimension = 2
+division = [80, 80, 80]
+length = [1.0, 1.0, 1.0]
+type = "quad4"
+
+[material]
+designs_0 = 0.3
+penalty = 3.0
+poisson = 0.4
+state = "plane_strain"
+type = "Elastic"
+young = [1.0e-2, 10.0]
+
+[this_problem]
+Mstrain_factor = 0.2
+direction = "isotropy"
+fdm = false
+numstep = 40
+
+#isotropic
+target_poisson_iso = -0.2
+target_young_iso = 0.6
+
+#orthotropic
+#xy[0],yx[1],yz[2],zy[3],xz[4],zx[5]
+target_poisson_ortho = [-0.3, -0.1, -0.1, -0.2, -0.3, -0.2]
+#x[0],y[1],z[2]
+target_young_ortho = [0.6, 0.2, 0.4]

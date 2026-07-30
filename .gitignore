@@ -1,0 +1,40 @@
+#library directory
+lib/
+#doxygen directory
+html/
+#latex document directory
+latex/
+#csv file
+*.csv
+#executable file
+build/
+*.out
+#pre-compiled header file
+*.gch
+#.DS_Store file (mac)
+.DS_Store
+#mpi mesh file
+*.in
+#metis file
+*.mesh
+*.epart.*
+*.npart.*
+#dependency files
+*.d
+# objective-file
+*.o
+# vtk-file
+*.vtk
+*.vtu
+*.pvtu
+# text file
+*.lst
+*.txt
+!CMakeLists.txt
+#pdf file
+*pdf
+# executive file
+*.exe
+#不老 log file
+*.err
+.d*

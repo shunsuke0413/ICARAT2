@@ -1,0 +1,25 @@
+[mesh]
+dimension = 3
+type = "hexa8"
+division = [250, 50, 50]
+length = [500.0, 100.0, 100.0]
+
+[boundary_condition]
+dirichlet = [
+    [[1, 1, 1, 0, 0, 0,], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 200.0], [0.0, 200.0]]],
+]
+
+neumann = [
+    [[0.0, 0.0, -0.001], [[495.0, 500.0], [0.0, 100.0], [0.0, 5.0]]]
+]
+
+[material]
+type = "Elastic"
+state = "3D"
+designs_0 = 0.2
+penalty = 3.0
+young = [0.001, 100.0]
+poisson = 0.3
+
+[this_problem]
+fdm = false

@@ -1,0 +1,41 @@
+[mesh]
+dimension = 2
+type = ["quad4"]
+
+[boundadry_condition]
+dirichlet = [
+    [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 80.0,], [200.0, 200.0], [0.0, 20.0]]]
+]
+
+neumann = [
+    [[0.0, -0.4, 0.0], [[197.0, 200.0], [80.0, 80.0], [0.0, 20.0]]]
+]
+
+[material]
+type = "Elastic"
+state = "plane_stress"
+penalty = 3.0
+poisson = 0.3
+young = [1.0e-4, 100.0]
+designs_0 = 0.4
+
+[this_problem]
+# constraint problem?
+const_buckling = true
+const_stress = true
+fdm = false
+# stress limit
+lim_eigen = 9.00034
+lim_stress = 0.77562
+# number of eigenvalues
+num_eigen = 10
+# factor of buckling constraint (>=1)
+alpha_eigen = 1.5
+alpha_stress = 0.6
+# p-norm parameter
+p_norm = 12.0
+# parameters for shit-invert method
+shift = 1.0
+shift_n = 10
+# filter radious
+filterR = 2.0

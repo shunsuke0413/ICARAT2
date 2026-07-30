@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "ICARAT",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/local/include",
+                "${workspaceFolder}/src"
+            ],
+            "cppStandard": "c++20",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "forcedInclude": [
+                "${workspaceFolder}/.vscode/eigen_fix.h"
+            ],
+        }
+    ],
+    "version": 4
+}

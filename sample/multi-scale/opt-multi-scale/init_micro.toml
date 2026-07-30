@@ -1,0 +1,13 @@
+[mesh]
+dimension = 2
+division = [60, 60, 100]
+length = [1.0, 1.0, 1.0]
+type = "quad8"
+
+[material]
+designs_0 = 0.35
+penalty = 3.0
+poisson = 0.3
+state = "plane_strain"
+type = "Elastic"
+young = [0.001, 200.0]

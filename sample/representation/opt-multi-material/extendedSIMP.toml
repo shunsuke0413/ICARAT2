@@ -1,0 +1,34 @@
+[mesh]
+dimension = 2
+division = [180, 120, 10]
+length = [60.0, 40.0, 10.0]
+type = "quad4"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 40.0], [0.0, 10.0]]],
+]
+
+neumann = [
+  [[0.0, -0.1, 0.0], [[60.0, 60.0], [19.0, 21.0], [0.0, 0.0]]],
+]
+
+[material]
+#number of materials
+func_type = "extendedSIMP"
+num_mat = 4
+penalty = 3.0
+poisson = 0.3
+state = "plane_stress"
+type = "ElastMultiMat"
+young_void = 1.0e-4
+#initial design variables (is also used for volume constraints)
+#When num_mat = 2 in extendSIMP, s_0*(1-s_1) is mat.1's volume constraint,
+#and s_0*s_1 is mat.2's volume constraint
+designs = [0.6, 0.75, 0.667, 0.5]
+#young modulus
+young = [10.0, 20.0, 40.0, 80.0]
+
+[this_problem]
+fdm = false
+filterR = 1.0

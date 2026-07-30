@@ -1,0 +1,26 @@
+[mesh]
+dimension = 3
+division = [25, 5, 5]
+length = [25.0, 5.0, 5.0]
+type = "hexa8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 5.0], [0.0, 5.0]]],
+]
+
+neumann = [
+  [[-250.0, 0.0, 0.0], [[25.0, 25.0], [0.0, 5.0], [0.0, 5.0]]],
+]
+
+[material]
+C01 = [8.0, 80.0]
+C10 = [2.0, 20.0]
+D01 = [1.0e7, 1.0e8]
+designs_0 = 1.0
+penalty = 3.0
+state = "3d"
+type = "Mooney"
+
+[this_problem]
+numstep = 10

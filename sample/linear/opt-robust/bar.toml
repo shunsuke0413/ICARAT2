@@ -1,0 +1,40 @@
+[mesh]
+dimension = 2
+type = "quad4"
+
+division = [100, 200, 1]
+length = [1.0, 2.0, 0.25]
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 1.0], [0.0, 0.0], [0.0, 0.0]]],
+]
+
+neumann = [
+  [[0.0, -1.0, 0.0], [[0.4, 0.6], [2.0, 2.0], [0.0, 10.0]]],
+]
+#とりあえず，荷重ケース数は1の値しか受付けません
+num_loadcase = 1
+
+[material]
+designs_0 = 0.35
+penalty = 3.0
+poisson = 0.3
+state = "plane_strain"
+type = "Elastic"
+young = [0.001, 10.0]
+
+[uncertainty]
+#parameter of objective function
+alpha = 1.0
+#number of sample data 
+num_sample = 1000000
+#deviation of magnitude
+inp_vval = 0.0
+#deviation of direction
+inp_vdir = 5.0
+
+[this_problem]
+fdm = false
+filterR = 0.02
+non_design=[]

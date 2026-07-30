@@ -1,0 +1,26 @@
+[mesh]
+dimension = 2
+type = ["quad4"]
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[44.0, 50.0], [0.0, 0.0], [0.0, 0.0]]],
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 6.0], [0.0, 0.0], [0.0, 0.0]]],
+]
+
+neumann = [
+  [[0.0, -100.0, 0.0], [[0.0, 50.0], [30.0, 30.0], [0.0, 0.0]]],
+]
+
+[material]
+density = 0.01
+designs_0 = 1.0
+penalty = 3.0
+poisson = 0.3
+state = "plane_stress"
+type = "Elastic"
+young = [0.001, 1000.0]
+
+[this_problem]
+numeigen = 3
+shift = 1.0

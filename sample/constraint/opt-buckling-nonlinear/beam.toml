@@ -1,0 +1,43 @@
+[mesh]
+dimension = 2
+type = "quad4"
+division = [200, 50, 1]
+length = [40.0, 10.0, 1.0]
+
+[boundary_condition]
+dirichlet = [
+    [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]],
+    [[0, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[40.0, 40.0], [0.0, 0.0], [0.0, 0.0]]]
+]
+
+neumann = [
+    [[0.0, -0.1, 0.0], [[18.0, 22.0], [10.0, 10.0], [0.0, 0.0]]],
+]
+
+[material]
+type = "Elastic"
+state = "plane_strain"
+designs_0 = 0.35
+penalty = 3.0
+young = [0.001, 200.0]
+poisson = 0.3
+
+# eigen problem settings
+[this_problem]
+# eigen constraint problem?
+constraint = true
+# non-design area at load point?
+load_point = false
+# fdm?
+fdm = false
+# eigen value limit
+lim_eigen = 12.3382
+# number of eigenvalues
+num_eigen = 10
+# factor of buckling constraint (>=1)
+alpha = 2.5
+# p-norm parameter
+p_norm = 8.0
+# parameters for shit-invert method
+shift = 1.0
+shift_n = 10

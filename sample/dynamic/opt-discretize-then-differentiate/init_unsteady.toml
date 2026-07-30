@@ -1,0 +1,31 @@
+[mesh]
+dimension = 2
+division = [200, 80, 1]
+length = [250.0, 100.0, 0.25]
+type = "quad4"
+
+[boundary_condition]
+
+dirichet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 100.0], [0.0, 0.0]]],
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[250.0, 250.0], [0.0, 100.0], [0.0, 0.0]]],
+]
+
+neumann = [
+  [[0.0, -0.5, 0.0], [[100.0, 150.0], [100.0, 100.0], [0.0, 0.0]]],
+]
+
+[material]
+density = 930.0e-9
+designs_0 = 0.4
+penalty = 3.0
+poisson = 0.3
+state = "plane_strain"
+type = "Elastic"
+young = [0.001, 0.1]
+
+[this_problem]
+delta_t = 0.2
+fdm = "no"
+filterR = 3.75
+timestep = 10

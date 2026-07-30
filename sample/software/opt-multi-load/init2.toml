@@ -1,0 +1,40 @@
+[mesh]
+dimension = 3
+type = ["tetra4"]
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "surfaces/surface_53.csv"],
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "surfaces/surface_62.csv"],
+]
+
+#neumann
+# xyz load,file path
+neumann = [
+  #[[0.0, -0.001, 0.0], "surfaces/surface_7.csv"], #  [[0.0, -10.0, 0.0], "surfaces/surface_2.csv"],
+]
+# load magnitude, Reference axis origin, 
+# direction vector of the reference axis,file path
+neumann_moment = [
+  # [1.0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], "surfaces/surface_1.csv"],
+  # [1.0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], "surfaces/surface_2.csv"],
+]
+neumann_pressure = [
+  [0.001, "surfaces/surface_64.csv"],
+  [0.001, "surfaces/surface_10.csv"],
+  [0.001, "surfaces/surface_4.csv"],
+  [0.001, "surfaces/surface_8.csv"],
+  [0.001, "surfaces/surface_6.csv"],
+  [0.001, "surfaces/surface_2.csv"],
+]
+
+[material]
+designs_0 = 1.0
+penalty = 3.0
+poisson = 0.33
+state = "3d"
+type = "Elastic"
+young = [0.001, 70.0]
+
+[this_problem]
+filterR = 20.0

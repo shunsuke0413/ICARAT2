@@ -1,0 +1,33 @@
+BeginZE /home/watanabe/Desktop/3d.gid/3d.vv
+   x -1.08884155750274658 2.02322554588317871
+   y 1.4036715030670166 -0.432844817638397217
+   z -3.09807610511779785 2.09807610511779785
+   e 0.866025388240814209
+   v -0.222886719993688642 0.231949916757117763 -0.129908131994955933
+   r 0.937893716477726458
+   m 0.858646214008331299 0.140282928943634033 0.492998331785202026 0 -0.347077161073684692 0.866890788078308105 0.357823759317398071 0 -0.377179145812988281 -0.478352457284927368 0.793041467666625977 0 0 0 0 1
+   c 0.5 0.5 0.5
+   pd 0
+   pno 0
+   pfo 0
+   pf 4
+   pv 0
+   NowUse 0
+   DrawingType 0
+   LightVector 90 90 150 0
+   OGLShadow(UseShadows) 0
+   OGLShadow(RenderMode) RenderNice
+   OGLShadow(ShadowBias) -0.002
+   OGLShadow(AmbientShadows) 1
+   OGLShadow(UseFBO) 1
+   OGLShadow(FBOSize) 2048
+   OGLShadow(DimmedLightFactor) 0.02
+   OGLStereo(UseStereo) 0
+   OGLStereo(RelativeEyeDistance) 1
+   OGLStereo(FlipEyes) 0
+   OGLStereo(StereoMode) AnaglyphColors
+   OGLStereo(EyeDistance) 0.075
+   OGLStereo(LeftEyeDistance) 1 0 0 1
+   OGLStereo(RightEyeDistance) 0 1 1 1
+EndZE /home/watanabe/Desktop/3d.gid/3d.vv
+

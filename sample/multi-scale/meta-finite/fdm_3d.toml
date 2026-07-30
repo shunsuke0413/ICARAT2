@@ -1,0 +1,29 @@
+[mesh]
+dimension = 3
+division = [6, 6, 6]
+length = [1.0, 1.0, 1.0]
+type = "hexa8"
+
+[material]
+designs_0 = 0.3
+penalty = 3.0
+poisson = 0.3
+state = "3d"
+type = "Elastic"
+young = [1.0e-6, 10.0]
+
+[this_problem]
+Mstrain_factor = 1.0e-6
+direction = "isotropy"
+fdm = true
+numstep = 1
+
+#isotropic
+target_poisson_iso = -0.2
+target_young_iso = 0.6
+
+#orthotropic
+#xy[0],yx[1],yz[2],zy[3],xz[4],zx[5]
+target_poisson_ortho = [-0.3, -0.1, -0.1, -0.2, -0.3, -0.2]
+#x[0],y[1],z[2]
+target_young_ortho = [0.6, 0.2, 0.4]

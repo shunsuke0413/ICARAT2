@@ -1,0 +1,40 @@
+[mesh]
+dimension = 3
+type = "hexa8"
+
+division = [20, 20, 50]
+length = [20.0, 20.0, 50.0]
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 20.0], [0.0, 20.0], [0.0, 0.0]]],
+]
+
+neumann = [
+  [[0.0, 0.0, -1.0], [[10.0, 10.0], [10.0, 10.0], [50.0, 50.0]]],
+]
+#とりあえず，荷重ケース数は1の値しか受付けません
+num_loadcase = 1
+
+[material]
+designs_0 = 0.2
+penalty = 3.0
+poisson = 0.3
+state = "3D"
+type = "Elastic"
+young = [0.001, 10.0]
+
+[uncertainty]
+#parameter of objective function
+alpha = 1.0
+#number of sample data 
+num_sample = 1000000
+#deviation of magnitude
+inp_vval = 0.0
+#deviation of direction
+inp_vdir = 5.0
+
+[this_problem]
+fdm = false
+filterR = 2.0
+non_design=[]

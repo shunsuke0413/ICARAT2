@@ -1,0 +1,20 @@
+[mesh]
+dimension = 2
+division = [20, 20, 80]
+length = [1.0, 1.0, 1.0]
+type = "quad8"
+
+[material]
+designs_0 = 0.3
+penalty = 3.0
+poisson = 0.3
+state = "plane_stress"
+type = "Elastic"
+young = [1.0e-6, 10.0]
+
+[this_problem]
+target_poisson = -0.2
+target_young = 0.6
+
+fdm = true
+filterR = 0.1

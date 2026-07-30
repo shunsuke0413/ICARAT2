@@ -1,0 +1,25 @@
+[mesh]
+dimension = 2
+division = [20, 8, 1]
+length = [250.0, 80.0, 0.25]
+type = "quad8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 80.0], [0.0, 0.0]]],
+]
+
+neumann = [
+  [[0.0, -1.0, 0.0], [[250.0, 250.0], [35.0, 45.0], [0.0, 10.0]]],
+]
+
+[material]
+designs_0 = 1.0
+penalty = 3.0
+poisson = 0.3
+state = "plane_strain"
+type = "Elastic"
+young = [0.001, 10.0]
+
+[this_problem]
+fdm = true

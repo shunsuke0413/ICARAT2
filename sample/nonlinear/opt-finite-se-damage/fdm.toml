@@ -1,0 +1,29 @@
+[mesh]
+dimension = 2
+division = [60, 20, 1]
+length = [300.0, 100.0, 1.0]
+type = "quad8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 100.0], [0.0, 1.0]]],
+  
+  [[1, 1, 0, 0, 0, 0], [100.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[300.0, 300.0], [0.0, 100.0], [0.0, 1.0]]]
+]
+
+neumann = [
+  # [[0.0, 0.0, 0.0], [[0.0, 300.0], [200.0, 200.0], [0.0, 1.0]]],
+]
+
+[material]
+designs_0 = 0.30
+penalty = 3.0
+poisson = 0.30
+state = "plane_strain"
+type = "Elastic"
+young = [0.01, 1156.0] 
+
+[this_problem]
+fdm = false
+filterR = 7.5
+numstep = 500

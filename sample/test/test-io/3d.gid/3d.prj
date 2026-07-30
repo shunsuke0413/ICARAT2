@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gid version="15.0">
+  <pre>
+    <layer_to_use name="Layer0"/>
+    <groups>
+      <group id="1" name="Solid Auto1" color="#ff00ffff" allowed_types="#38" allowed_element_types="#7fe"/>
+      <group id="2" name="Displacement Auto1" color="#008000ff" allowed_element_types="#7fe"/>
+      <group id="3" name="Total" color="#ff00ffff" parent_id="2" state="hidden"/>
+      <group id="4" name="Load on surfaces Auto1" color="#ffff00ff" allowed_types="#f4" allowed_element_types="#7fe"/>
+      <group id="5" name="Total" color="#a60021ff" parent_id="4" state="hidden"/>
+    </groups>
+    <entities_groups>
+      <entities_group name="surfaces">
+        <vector name="entity_ids" length="2" type="integer">2 4</vector>
+        <vector name="entity_num_groups" length="2" type="ushort">2 2</vector>
+        <vector name="entity_groups" length="4" type="ushort">2 3 4 5</vector>
+      </entities_group>
+      <entities_group name="volumes">
+        <vector name="entity_ids" length="1" type="integer">1</vector>
+        <vector name="entity_num_groups" length="1" type="ushort">1</vector>
+        <vector name="entity_groups" length="1" type="ushort">1</vector>
+      </entities_group>
+    </entities_groups>
+  </pre>
+</gid>
