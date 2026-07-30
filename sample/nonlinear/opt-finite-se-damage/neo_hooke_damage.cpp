@@ -127,10 +127,12 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector,
     IJdata(1, 0) = 2;
     IJdata(1, 1) = 1;
 
+    double p = lambda * (1.0 - jac);
+
     double A = lambda * jac * (2.0 * jac - 1.0);        // 体積弾性
     double B = 2.0 * (mu - lambda * jac * (jac - 1.0)); // せん断弾性
 
-    // De_ : 物質弾性係数テンソル
+    // Ctan : 物質弾性係数テンソル
 
     for(int i = 0; i < 2; i++)
     {
@@ -140,6 +142,14 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector,
         {
           for(int l = 0; l < 2; l++)
           {
+            double term1_vol = p * jac * (C_inv(i, j) * C_inv(k, l) - (C_inv(i, k) * C_inv(j, l) + C_inv(i, l) * C_inv(j, k)));
+            double term2_vol = -lambda * (jac * jac) * C_inv(i, j) * C_inv(k, l);
+
+            double Ctan_vol_ijkl = term_vol1 + term_vol2;
+
+
+
+            /*
             // 損傷の進展による微分値を計算
             double dD_dtau = differentiateD(tau);
 
@@ -155,6 +165,7 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector,
             double correction = damping * dD_dtau * (PK2(i, j) * PK2(k, l));
 
             De_(IJdata(i, j), IJdata(k, l)) = elastic_part - correction;
+            */
           }
         }
       }
