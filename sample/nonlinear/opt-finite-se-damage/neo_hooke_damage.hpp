@@ -28,9 +28,9 @@ public:
   //--------------------------------------------------------------//
 
   //----------------------- for damage model-----------------------//
-  double calculateDamage(double tau);
+  double calculateTensileDamage(double tau);
 
-  double getDerivativeD(double tau);
+  double differentiateD(double tau);
 
   // 損傷変数の管理用
   std::vector<double> D_all_;
