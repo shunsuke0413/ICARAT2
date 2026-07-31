@@ -13,8 +13,9 @@ int main(int argc, char *argv[])
   if(argc == 1)
   {
     std::cout << "usage1: " << argv[0] << " <.toml file>\n";
-    //std::cout << "usage2: " << argv[0] << " <.toml file> <.vtk file>\n";//vtk
-    std::cout << "usage2: " << argv[0] << " <.toml file> <.mdpa file>\n";//Icarat
+    // std::cout << "usage2: " << argv[0] << " <.toml file> <.vtk file>\n";//vtk
+    std::cout << "usage2: " << argv[0]
+              << " <.toml file> <.mdpa file>\n"; // Icarat
     return 1;
   }
 
@@ -29,15 +30,14 @@ int main(int argc, char *argv[])
   int numStep = toml::find<int>(config, "this_problem", "numstep");
   double filterR = toml::find<double>(config, "this_problem", "filterR");
   std::array<int, 4> covers = {
-    toml::find<int>(config, "boundary_condition", "cover-L"),
-    toml::find<int>(config, "boundary_condition", "cover-R"),
-    toml::find<int>(config, "boundary_condition", "cover-B"),
-    toml::find<int>(config, "boundary_condition", "cover-T")
-  };
-  //string pathVTK=argv[2];//vtk
+      toml::find<int>(config, "boundary_condition", "cover-L"),
+      toml::find<int>(config, "boundary_condition", "cover-R"),
+      toml::find<int>(config, "boundary_condition", "cover-B"),
+      toml::find<int>(config, "boundary_condition", "cover-T")};
+  // string pathVTK=argv[2];//vtk
   FEM fem;
-  MeshIcarat<OptLinearElastPlast, Node> mesh(fem, config);//Icarat
-  //MeshVTK<OptLinearElastPlast, Node> mesh(fem, pathVTK,config);//vtk
+  MeshIcarat<OptLinearElastPlast, Node> mesh(fem, config); // Icarat
+  // MeshVTK<OptLinearElastPlast, Node> mesh(fem, pathVTK,config);//vtk
   mesh.setParameter("structure");
 
   // set element(unstructured mesh version)
@@ -53,9 +53,11 @@ int main(int argc, char *argv[])
       element.push_back(actele);
     }
   }
-  //auto designs=mesh.importElementScalars("density");//vtk
-  // set node
-  vector<Node> node(fem.numnp);
+
+  int totalTime = numStep;
+  // auto designs=mesh.importElementScalars("density");//vtk
+  //  set node
+  vector<Node> node(fem.numnp, icarat::Node(totalTime));
   // input mesh to element & node
   mesh.generate(element, node);
 
@@ -68,9 +70,8 @@ int main(int argc, char *argv[])
   fem.numeq = BC.makeDOF();
 
   // set force & displacement
-  Force force(fem.numeq);
+  Force force(fem.numeq, totalTime);
   ValueNR dis(fem.numeq);
-
 
   // set equivalent node load to Force class
   BC.input_neumann(config, force);
@@ -100,8 +101,7 @@ int main(int argc, char *argv[])
   //   }
   // }
 
-  int element_ID =
-      toml::find<int>(config, "mises_eqstn", "element_ID");
+  int element_ID = toml::find<int>(config, "mises_eqstn", "element_ID");
   // int element_ID_sens =
   //     toml::find<int>(config, "sensitivity_history", "element_ID_sens");
 
@@ -115,17 +115,17 @@ int main(int argc, char *argv[])
   optim.optstep = 0;
   for(int i = 0; i < fem.nelx; i++)
     optim.design_s[i] = element[i].design_s();
-  
+
   for(int el = 0; el < fem.nelx; el++)
   {
-    int ix = el % mesh.div()[0]; 
-    int iy = el / mesh.div()[0]; 
+    int ix = el % mesh.div()[0];
+    int iy = el / mesh.div()[0];
 
-    if(ix < covers[0] || ix >= (mesh.div()[0] - covers[1]) ||
-       iy < covers[2] || iy >= (mesh.div()[1] - covers[3]))
+    if(ix < covers[0] || ix >= (mesh.div()[0] - covers[1]) || iy < covers[2] ||
+       iy >= (mesh.div()[1] - covers[3]))
     {
       optim.xmin[el] = 1.0 - 1.0e-4;
-      optim.xmax[el] = 1.0; 
+      optim.xmax[el] = 1.0;
       optim.design_s[el] = 1.0;
     }
   }
@@ -147,12 +147,13 @@ int main(int argc, char *argv[])
     cout << "============== optimization step ==============" << endl;
     cout << "step no. " << optim.optstep << endl;
 
-    auto design_filtered = filter.densityFilter2(optim.design_s, false, optim.optstep, mesh_length);
+    auto design_filtered = filter.densityFilter2(optim.design_s, false,
+                                                 optim.optstep, mesh_length);
 
     for(int el = 0; el < fem.nelx; el++)
     {
-      int ix = el % mesh.div()[0]; 
-      int iy = el / mesh.div()[0]; 
+      int ix = el % mesh.div()[0];
+      int iy = el / mesh.div()[0];
 
       if(ix < covers[0] || ix >= (mesh.div()[0] - covers[1]) ||
          iy < covers[2] || iy >= (mesh.div()[1] - covers[3]))
@@ -164,18 +165,19 @@ int main(int argc, char *argv[])
     // /// set threshold function
     // double beta = 1.0;
     // cout << "beta: " << beta << endl;
-    // //auto design_threshold = filter.threshold(design_filtered, beta, T); //for optimization
-    // auto design_threshold = design_filtered; //for sensitivity analysis
-    // auto threDeriv = filter.thresholdDerivative(design_filtered, beta, T);
+    // //auto design_threshold = filter.threshold(design_filtered, beta, T);
+    // //for optimization auto design_threshold = design_filtered; //for
+    // sensitivity analysis auto threDeriv =
+    // filter.thresholdDerivative(design_filtered, beta, T);
 
     // set threshold design variable
     for(int i = 0; i < fem.nelx; i++)
     {
-      element[i].setDesignS(design_filtered[i]);//Icarat
-      //element[i].setDesignS(optim.design_s[i]);//Icarat
-      //element[i].setDesignS(designs[i]);//vtk
+      element[i].setDesignS(design_filtered[i]); // Icarat
+      // element[i].setDesignS(optim.design_s[i]);//Icarat
+      // element[i].setDesignS(designs[i]);//vtk
     }
-      
+
     // Initialization of element internal variables
     compt.initialization();
     for(int nel = 0; nel < fem.nelx; nel++)
@@ -184,15 +186,16 @@ int main(int argc, char *argv[])
       element[nel].init_opt();
     }
 
-    //output_str(fem, element, node, optim, 0);//
+    // output_str(fem, element, node, optim, 0);//
 
-    // addPlot(node[control_ID].val[direction], node[control_ID].reaction[direction],
+    // addPlot(node[control_ID].val[direction],
+    // node[control_ID].reaction[direction],
     //         "load_displacement.csv", 1);
-    
+
     addPlot(element[element_ID].eqstn(), element[element_ID].mises(),
             "mises_eqstn.csv", 1);
-    addPlot(element[element_ID].eqstn_gauss(), element[element_ID].mises_gauss(),
-            "mises_eqstn_gauss.csv", 1);
+    addPlot(element[element_ID].eqstn_gauss(),
+            element[element_ID].mises_gauss(), "mises_eqstn_gauss.csv", 1);
 
     for(int loadStep = 1; loadStep < numStep + 1; loadStep++)
     {
@@ -210,14 +213,15 @@ int main(int argc, char *argv[])
         element[nel].stress_plastic(fem, node, tripletsR);
         element[nel].sensitivity(fem, node);
       }
-      //output_str(fem, element, node, optim, loadStep);//
+      // output_str(fem, element, node, optim, loadStep);//
 
       // addPlot(node[control_ID].val[direction],
-      //         node[control_ID].reaction[direction], "load_displacement.csv", 0);
+      //         node[control_ID].reaction[direction], "load_displacement.csv",
+      //         0);
       addPlot(element[element_ID].eqstn(), element[element_ID].mises(),
-            "mises_eqstn.csv", 0);
-      addPlot(element[element_ID].eqstn_gauss(), element[element_ID].mises_gauss(),
-            "mises_eqstn_gauss.csv", 0);
+              "mises_eqstn.csv", 0);
+      addPlot(element[element_ID].eqstn_gauss(),
+              element[element_ID].mises_gauss(), "mises_eqstn_gauss.csv", 0);
     }
 
     // get objective function
@@ -236,15 +240,15 @@ int main(int argc, char *argv[])
       if(V0 == 0.0)
         cerr << "V0 = 0. in optimization" << endl;
 
-      //optim.const_h[0] = V0; //OC
-      optim.const_h[0] = 0.0; //MMA
+      // optim.const_h[0] = V0; //OC
+      optim.const_h[0] = 0.0; // MMA
     }
     else
     {
       optim.const_h[0] = 0.0;
       for(int i = 0; i < fem.nelx; i++)
         optim.const_h[0] += element[i].design_s() * element[i].volume;
-      optim.const_h[0] -= V0; //MMA
+      optim.const_h[0] -= V0; // MMA
 
       cout << "const value: " << optim.const_h[0] << ",  "
            << "first volume: " << V0 << endl;
@@ -267,13 +271,15 @@ int main(int argc, char *argv[])
       optim.dgds[i] = element[i].volume;
     }
     // filtering sensitivity
-    optim.dfds = filter.densityFilter2(optim.dfds, true, optim.optstep, mesh_length);
-    optim.dgds = filter.densityFilter2(optim.dgds, true, optim.optstep, mesh_length);
+    optim.dfds =
+        filter.densityFilter2(optim.dfds, true, optim.optstep, mesh_length);
+    optim.dgds =
+        filter.densityFilter2(optim.dgds, true, optim.optstep, mesh_length);
 
     for(int el = 0; el < fem.nelx; el++)
     {
-      int ix = el % mesh.div()[0]; 
-      int iy = el / mesh.div()[0]; 
+      int ix = el % mesh.div()[0];
+      int iy = el / mesh.div()[0];
 
       if(ix < covers[0] || ix >= (mesh.div()[0] - covers[1]) ||
          iy < covers[2] || iy >= (mesh.div()[1] - covers[3]))
@@ -286,15 +292,15 @@ int main(int argc, char *argv[])
 
     exportGraph(optim.dfds, "objective.csv");
 
-    exit(1);
+    // exit(1);
 
     // if(toml::find<bool>(config, "this_problem", "taylor_test"))
     //   taylor_test(fem, element, node, force, dis, optim, numStep, filterR);
     if(toml::find<bool>(config, "this_problem", "fdm"))
       fdm(fem, element, node, force, dis, optim, numStep, filterR);
 
-    //Get updated design variables with MMA
-     mma.Update(optim.design_s.data(), optim.dfds.data(), optim.const_h.data(),
+    // Get updated design variables with MMA
+    mma.Update(optim.design_s.data(), optim.dfds.data(), optim.const_h.data(),
                optim.dgds.data(), optim.xmin.data(), optim.xmax.data());
 
     // not convergence
