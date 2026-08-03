@@ -15,18 +15,18 @@ int main(int argc, char *argv[])
 {
   if(argc < 3)
   {
-    std::cout << "usage2: " << argv[0] << " <.toml file> <.vtk file>\n";//vtk
+    std::cout << "usage2: " << argv[0] << " <.toml file> <.vtk file>\n"; // vtk
     return 1;
   }
 
   // measure time
   auto t_start = chrono::system_clock::now();
-  int numConst = 1;    // number of constraint
+  int numConst = 1; // number of constraint
   double T = 0.5;
   // set input file
   const auto config = toml::parse(argv[1]);
   int numStep = toml::find<int>(config, "this_problem", "numstep");
-  string pathVTK=argv[2];//vtk
+  string pathVTK = argv[2]; // vtk
   FEM fem;
 
   // set control node for load-displacement
@@ -46,18 +46,18 @@ int main(int argc, char *argv[])
 
   Optimize optim(fem.nelx, numConst, 1.0e-4, 1.0);
 
-  int element_ID =
-      toml::find<int>(config, "mises_eqstn", "element_ID");
+  int element_ID = toml::find<int>(config, "mises_eqstn", "element_ID");
 
   optim.optstep = 1;
 
-  for(int filenum = 51; filenum <= 51; filenum++)
+  for(int filenum = 51; filenum <= 51;
+      filenum++) // ループ数変えたらここも変える!!!!!!
   {
     ostringstream fileNameStream;
     fileNameStream << "res" << filenum << ".vtk";
     string fileName = fileNameStream.str();
 
-    MeshVTK<OptLinearElastPlast, Node> mesh(fem, fileName ,config);//vtk
+    MeshVTK<OptLinearElastPlast, Node> mesh(fem, fileName, config); // vtk
     mesh.setParameter("structure");
 
     // set element(unstructured mesh version)
@@ -74,14 +74,16 @@ int main(int argc, char *argv[])
         element.push_back(actele);
       }
     }
-    auto designs=mesh.importElementScalars("density");//vtk
+    auto designs = mesh.importElementScalars("density"); // vtk
     // set threshold design variable
     for(int i = 0; i < fem.nelx; i++)
     {
-      element[i].setDesignS(designs[i]);//vtk
+      element[i].setDesignS(designs[i]); // vtk
     }
+
+    int totalTime = numStep;
     // set node
-    vector<Node> node(fem.numnp);
+    vector<Node> node(fem.numnp, totalTime);
     // input mesh to element & node
     mesh.generate(element, node);
 
@@ -94,7 +96,7 @@ int main(int argc, char *argv[])
     fem.numeq = BC.makeDOF();
 
     // set force & displacement
-    Force force(fem.numeq);
+    Force force(fem.numeq, totalTime);
     ValueNR dis(fem.numeq);
 
     // set equivalent node load to Force class
@@ -109,11 +111,11 @@ int main(int argc, char *argv[])
         break;
       }
     }
-  
-    //optim.design_s = designs;
+
+    // optim.design_s = designs;
 
     NewtonRaphson<OptLinearElastPlast, Node> compt(fem, element, node, force,
-                                                 dis);
+                                                   dis);
 
     // Initialization of element internal variables
     compt.initialization();
@@ -125,13 +127,15 @@ int main(int argc, char *argv[])
 
     // --- TOMLの読み込み部分 ---
     // ターゲットのリストを配列として取得
-    auto boundary_targets = toml::find<std::vector<std::map<std::string, double>>>(config, "reaction_boundary", "targets");
+    auto boundary_targets =
+        toml::find<std::vector<std::map<std::string, double>>>(
+            config, "reaction_boundary", "targets");
 
     // --- 荷重-変位プロットの計算部分（mainのループ内） ---
     double total_R = 0.0;
 
     // TOMLで指定されたすべての固定端・支点をループで回して足し合わせる
-    for (const auto& target : boundary_targets)
+    for(const auto &target : boundary_targets)
     {
       // デフォルトは -1.0（チェックしない）にしておく
       double tx = -1.0;
@@ -139,21 +143,24 @@ int main(int argc, char *argv[])
       double tz = -1.0;
 
       // mapの中に "X", "Y", "Z" キーがあれば、その値を代入
-      if (target.count("X")) tx = target.at("X");
-      if (target.count("Y")) ty = target.at("Y");
-      if (target.count("Z")) tz = target.at("Z");
+      if(target.count("X"))
+        tx = target.at("X");
+      if(target.count("Y"))
+        ty = target.at("Y");
+      if(target.count("Z"))
+        tz = target.at("Z");
 
       // 1箇所（または1線・1面）ずつの反力を計算して、全体の合計に累積する
       total_R += compt.calculateTotalReaction(direction, tx, ty, tz);
     }
 
     // output_str(fem, element, node, optim, 0);
-    addPlot(node[control_ID].val[direction], total_R,
-            "load_displacement.csv", 1);
+    addPlot(node[control_ID].val[direction], total_R, "load_displacement.csv",
+            1);
     addPlot(element[element_ID].eqstn(), element[element_ID].mises(),
             "mises_eqstn.csv", 1);
-    addPlot(element[element_ID].eqstn_gauss(), element[element_ID].mises_gauss(),
-            "mises_eqstn_gauss.csv", 1);
+    addPlot(element[element_ID].eqstn_gauss(),
+            element[element_ID].mises_gauss(), "mises_eqstn_gauss.csv", 1);
 
     for(int loadStep = 1; loadStep < numStep + 1; loadStep++)
     {
@@ -174,7 +181,7 @@ int main(int argc, char *argv[])
 
       total_R = 0.0;
       // TOMLで指定されたすべての固定端・支点をループで回して足し合わせる
-      for (const auto& target : boundary_targets)
+      for(const auto &target : boundary_targets)
       {
         // デフォルトは -1.0（チェックしない）にしておく
         double tx = -1.0;
@@ -182,21 +189,24 @@ int main(int argc, char *argv[])
         double tz = -1.0;
 
         // mapの中に "X", "Y", "Z" キーがあれば、その値を代入
-        if (target.count("X")) tx = target.at("X");
-        if (target.count("Y")) ty = target.at("Y");
-        if (target.count("Z")) tz = target.at("Z");
+        if(target.count("X"))
+          tx = target.at("X");
+        if(target.count("Y"))
+          ty = target.at("Y");
+        if(target.count("Z"))
+          tz = target.at("Z");
 
         // 1箇所（または1線・1面）ずつの反力を計算して、全体の合計に累積する
         total_R += compt.calculateTotalReaction(direction, tx, ty, tz);
       }
 
       // output_str(fem, element, node, optim, loadStep);
-      addPlot(node[control_ID].val[direction],
-              total_R, "load_displacement.csv", 0);
+      addPlot(node[control_ID].val[direction], total_R, "load_displacement.csv",
+              0);
       addPlot(element[element_ID].eqstn(), element[element_ID].mises(),
-            "mises_eqstn.csv", 0);
-      addPlot(element[element_ID].eqstn_gauss(), element[element_ID].mises_gauss(),
-            "mises_eqstn_gauss.csv", 0);
+              "mises_eqstn.csv", 0);
+      addPlot(element[element_ID].eqstn_gauss(),
+              element[element_ID].mises_gauss(), "mises_eqstn_gauss.csv", 0);
     }
 
     // get objective function
