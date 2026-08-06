@@ -21,7 +21,7 @@ cover-T = 0
 
 [material]
 beta = 1.0
-designs_0 = 1.0
+designs_0 = 0.5
 h = [-18.0, -18.0]
 penalty = 3.0
 poisson = 0.37
@@ -35,8 +35,8 @@ y0 = [22.8, 22.8]
 young = [0.0, 1150.0]
 
 [this_problem]
-fdm = true
-filterR = 1.0
+fdm = false
+filterR = 1.6
 numstep = 50
 
 [load_displacement]

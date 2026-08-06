@@ -40,51 +40,6 @@ int main(int argc, char *argv[])
   // MeshVTK<OptLinearElastPlast, Node> mesh(fem, pathVTK,config);//vtk
   mesh.setParameter("structure");
 
-  //non design area
-  struct Box3D {
-    double xmin, xmax;
-    double ymin, ymax;
-    double zmin, zmax;
-  };
-
-  std::vector<Box3D> non_design_list;
-
-  auto boxes = config["non_design"]["non_design_boxes"].as_array();
-
-  for (const auto& b : boxes) {
-    Box3D box;
-    box.xmin = b[0].as_floating();
-    box.xmax = b[1].as_floating();
-    box.ymin = b[2].as_floating();
-    box.ymax = b[3].as_floating();
-    box.zmin = b[4].as_floating(); 
-    box.zmax = b[5].as_floating(); 
-    non_design_list.push_back(box);
-  }
-
-  for (int el = 0; el < fem.nelx; el++){
-    double elem_x = element[el].get_center_x(); 
-    double elem_y = element[el].get_center_y();
-    double elem_z = element[el].get_center_z();
-
-    bool is_in_non_design = false;
-
-    for (const auto& box : non_design_list){
-      if (elem_x >= box.xmin && elem_x <= box.xmax &&
-            elem_y >= box.ymin && elem_y <= box.ymax &&
-            elem_z >= box.zmin && elem_z <= box.zmax)
-        {
-            is_in_non_design = true;
-            break;
-        }
-    }
-
-    element[el].is_non_design = is_in_non_design;
-}
-  
-
-std::vector<Box3D> non_design_list;
-
   // set element(unstructured mesh version)
   vector<OptLinearElastPlast> element;
   for(int type = 0; type < mesh.numeleTypes(); type++)
@@ -174,6 +129,74 @@ std::vector<Box3D> non_design_list;
       optim.design_s[el] = 1.0;
     }
   }
+  // ==========================================
+  // 1. メッシュの分割数を取得
+  // ==========================================
+  int nx = mesh.div()[0];
+  int ny = mesh.div()[1];
+
+  // ==========================================
+  // 2. TOMLから非設計領域のボックス（インデックス範囲）を読み込む
+  // ==========================================
+  struct BoxIndex3D
+  {
+    int xmin, xmax;
+    int ymin, ymax;
+    int zmin, zmax;
+  };
+
+  std::vector<BoxIndex3D> non_design_list;
+  auto boxes = toml::find<std::vector<std::vector<int>>>(config, "non_design",
+                                                         "non_design_boxes");
+
+  for(const auto &b : boxes)
+  {
+    BoxIndex3D box;
+    box.xmin = b[0];
+    box.xmax = b[1];
+    box.ymin = b[2];
+    box.ymax = b[3];
+    box.zmin = b[4];
+    box.zmax = b[5];
+    non_design_list.push_back(box);
+  }
+
+  // ==========================================
+  // 3. 全要素分のフラグ配列を用意し、ボックス内か判定して保存する
+  // ==========================================
+  std::vector<bool> is_non_design_flag(fem.nelx, false);
+
+  for(int el = 0; el < fem.nelx; el++)
+  {
+    int iz = el / (nx * ny);
+    int iy = (el / nx) % ny;
+    int ix = el % nx;
+
+    bool is_in_non_design = false;
+    for(const auto &box : non_design_list)
+    {
+      if(ix >= box.xmin && ix <= box.xmax && iy >= box.ymin && iy <= box.ymax &&
+         iz >= box.zmin && iz <= box.zmax)
+      {
+        is_in_non_design = true;
+        break;
+      }
+    }
+    is_non_design_flag[el] = is_in_non_design;
+  }
+
+  // ==========================================
+  // 4. 判定結果をもとに、最適化変数（optim）の境界条件を固定する
+  // ==========================================
+  for(int el = 0; el < fem.nelx; el++)
+  {
+    if(is_non_design_flag[el])
+    {
+      optim.xmin[el] = 1.0e-4;
+      optim.xmax[el] = 1.0e-4 + 1.0e-4;
+      optim.design_s[el] = 1.0e-4;
+    }
+  }
 
   NewtonRaphson<OptLinearElastPlast, Node> compt(fem, element, node, force,
                                                  dis);
@@ -204,6 +227,11 @@ std::vector<Box3D> non_design_list;
          iy < covers[2] || iy >= (mesh.div()[1] - covers[3]))
       {
         design_filtered[el] = 1.0;
+      }
+
+      if(is_non_design_flag[el])
+      {
+        design_filtered[el] = 1.0e-4;
       }
     }
 
@@ -333,6 +361,12 @@ std::vector<Box3D> non_design_list;
         optim.dgds[el] = 0.0;
         // 制約関数の感度（dgdxなど）配列があればそれも 0.0 にする
       }
+
+      if(is_non_design_flag[el])
+      {
+        optim.dfds[el] = 0.0;
+        optim.dgds[el] = 0.0;
+      }
     }
 
     exportGraph(optim.dfds, "objective.csv");
@@ -347,6 +381,14 @@ std::vector<Box3D> non_design_list;
     // Get updated design variables with MMA
     mma.Update(optim.design_s.data(), optim.dfds.data(), optim.const_h.data(),
                optim.dgds.data(), optim.xmin.data(), optim.xmax.data());
+
+    for(int el = 0; el < fem.nelx; el++)
+    {
+      if(is_non_design_flag[el])
+      {
+        optim.design_s[el] = 1.0e-4;
+      }
+    }
 
     // not convergence
     if(optim.optstep == 1000)

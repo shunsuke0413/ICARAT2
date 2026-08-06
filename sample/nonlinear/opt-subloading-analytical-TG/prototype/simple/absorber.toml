@@ -1,0 +1,45 @@
+[mesh]
+dimension = 3
+division = [80, 36, 1]
+length = [60.0, 27.0, 0.75]
+type = "hexa8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 60.0], [0.0, 0.0], [0.0, 0.75]]],
+  [[0, 1, 0, 0, 0, 0], [0.0, -0.5, 0.0, 0.0, 0.0, 0.0], [[0.0, 60.0], [27.0, 27.0], [0.0, 0.75]]],
+]
+
+neumann = []
+
+cover-L = 0
+cover-R = 0
+cover-B = 1
+cover-T = 1
+
+[material]
+beta = 1.0
+designs_0 = 0.5
+h = [-18.0, -18.0]
+penalty = 3.0
+poisson = 0.37
+Re = 0.6
+u = 80.0
+alpha = 60.0
+betainter = 0.02
+state = "3D"
+type = "ElastPlast"
+y0 = [22.8, 22.8]
+young = [0.0, 1150.0]
+
+[this_problem]
+fdm = false
+filterR = 1.6
+numstep = 100
+
+[load_displacement]
+direction = "Y"
+observation_point = [60.0, 27.0, 0.0]
+
+[mises_eqstn]
+element_ID = 169
