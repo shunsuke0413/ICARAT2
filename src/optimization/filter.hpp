@@ -33,7 +33,8 @@ public:
                                     bool isSens);
 
   std::vector<double> densityFilter2(const std::vector<double> &design_s,
-                                    bool isSens, int optstep, double mesh_length);
+                                     bool isSens, int optstep,
+                                     double mesh_length);
 
   /// update design variable using threshold function
   std::vector<double> threshold(const std::vector<double> &design_s,
@@ -155,10 +156,11 @@ Filter<E, N>::densityFilter(const std::vector<double> &design_s, bool isSens)
 
 template <class E, class N>
 std::vector<double>
-Filter<E, N>::densityFilter2(const std::vector<double> &design_s, bool isSens, int optstep, double mesh_length)
+Filter<E, N>::densityFilter2(const std::vector<double> &design_s, bool isSens,
+                             int optstep, double mesh_length)
 {
   std::vector<double> filtered_s(fem.nelx);
-  double decay_amount = std::max((optstep - 46) * 0.05, 0.0);
+  double decay_amount = std::max((optstep - 40) * 1.0, 0.0);
   double radius_now = std::max(radius_ - decay_amount, mesh_length);
 
   // density filter
@@ -174,7 +176,9 @@ Filter<E, N>::densityFilter2(const std::vector<double> &design_s, bool isSens, i
 
       for(int j = 0; j < numele_[i]; j++)
       {
-        double weight = radius_now - dis_[i][j];
+        double weight = std::max(radius_now - dis_[i][j], 0.0);
+        if(weight <= 0.0)
+          continue;
         aa += weight;
         bb += weight * design_s[ID_[i][j]];
       }
@@ -198,7 +202,10 @@ Filter<E, N>::densityFilter2(const std::vector<double> &design_s, bool isSens, i
     {
       for(int j = 0; j < numele_[i]; j++)
       {
-        double weight = radius_now - dis_[i][j];
+        double weight = std::max(radius_now - dis_[i][j], 0.0);
+        if(weight <= 0.0)
+          continue;
+
         filtered_s[i] += weight * design_s[ID_[i][j]] / dfilters_ds[ID_[i][j]];
       }
     }
