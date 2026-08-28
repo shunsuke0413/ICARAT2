@@ -22,9 +22,10 @@ public:
   }
 
   //----------------------- for S:E integration ------------------//
-  void totalKirchhoff(FEM &fem, Eigen::VectorXd &sigmaVector,
-                      Eigen::MatrixXd &F, Eigen::MatrixXd &sigmaMatrix,
-                      double &product, int ip);
+  void totalKirchhoff(FEM &fem, Eigen::MatrixXd &PK2,
+                      Eigen::VectorXd &sigmaVector, Eigen::MatrixXd &F,
+                      Eigen::MatrixXd &sigmaMatrix, double &product,
+                      Eigen::MatrixXd &Ctan, int ip);
   //--------------------------------------------------------------//
 
   //----------------------- for damage model-----------------------//
@@ -47,6 +48,11 @@ public:
       sum += d;
     return sum / static_cast<double>(D_all_.size());
   }
+
+  double mises() const { return mises_; }
+
+private:
+  double mises_;
   //---------------------------------------------------------------//
 };
 
@@ -86,7 +92,7 @@ class FiniteNeoHookedamage : public neohookedamage
 public:
   FiniteNeoHookedamage(int voigt_, int ne_, int ipmax_, int numdof_,
                        int totalTime)
-      : NeoHookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
+      : neohookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
         l_(voigt_, numdof_), lfe_(numdof_), Kegamma_(numdof_, numdof_)
   {
   }
@@ -94,7 +100,7 @@ public:
   // --- この中継関数を追加してください ---
   double getAverageDamage() const
   {
-    return NeoHookedamage::getAverageDamage_();
+    return neohookedamage::getAverageDamage_();
   }
 
   void setGamma(double gamma) { gamma_ = gamma; }
@@ -131,12 +137,12 @@ protected:
   Eigen::MatrixXd nKe_;
 };
 
-class DynamicNeoHookedamage : public NeoHookedamage
+class DynamicNeoHookedamage : public neohookedamage
 {
 public:
   DynamicNeoHookedamage(int voigt_, int ne_, int ipmax_, int numdof_,
                         double density)
-      : NeoHookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
+      : neohookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
         l_(voigt_, numdof_), lfe_(numdof_), nfe_(numdof_),
         Me_(numdof_, numdof_), density_(density)
   {
@@ -175,11 +181,11 @@ protected:
 
 /// micro scale elastic model class based on homogenization theory
 ///@sa  寺田賢二郎ら，「数値材料試験」，丸善出版，2021.
-class mHomoNeoHookedamage : public NeoHookedamage
+class mHomoNeoHookedamage : public neohookedamage
 {
 public:
   mHomoNeoHookedamage(int voigt_, int ne_, int ipmax_, int numdof_)
-      : NeoHookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
+      : neohookedamage(voigt_, ne_, ipmax_, numdof_), gamma_(0.0),
         l_(voigt_, numdof_), sEnergy_(voigt_, voigt_)
   {
   }

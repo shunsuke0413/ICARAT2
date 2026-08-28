@@ -20,27 +20,26 @@ using namespace Eigen;
 
 double neohookedamage::calculateTensileDamage(double tau)
 {
-  const double tau_0 = 0.42;
+  const double tau_0 = 0.35;
 
   double D = (tau >= tau_0)
-                 ? 1.0 - ((-1.083 * tau + 51.438) / (54.703 * tau + 21.477))
+                 ? 1.0 - ((-1.22005 * tau + 52.3473) / (65.1249 * tau + 16.550))
                  : 0.0;
   D = std::max(0.0, std::min(0.999, D));
-  D = 0.0;
 
   return D;
 }
 
 double neohookedamage::differentiateD(double tau)
 {
-  const double tau_0 = 0.42;
+  const double tau_0 = 0.35;
   // D = 1.0 - ((A*tau + B) / (C*tau + D)) の微分
   // D' = - ( (A*(C*tau+D) - (A*tau+B)*C) / (C*tau+D)^2 )
 
-  double Pa = -1.083;
-  double Pb = 51.483;
-  double Pc = 54.703;
-  double Pd = 21.477;
+  double Pa = -1.22005;
+  double Pb = 52.3473;
+  double Pc = 65.1249;
+  double Pd = 16.550;
 
   double denom = Pc * tau + Pd;
   double d_f_d_tau = (-Pa * Pd - Pb * Pc) / (denom * denom);
@@ -49,10 +48,9 @@ double neohookedamage::differentiateD(double tau)
 }
 
 //----------------------- for S:E integration ------------------//
-void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
-                                    VectorXd &sigmaVector_iso, MatrixXd &F,
-                                    MatrixXd &sigmaMatrix_vol,
-                                    MatrixXd &sigmaMatrix_iso, double &product,
+void neohookedamage::totalKirchhoff(FEM &fem, MatrixXd &PK2,
+                                    VectorXd &sigmaVector, MatrixXd &F,
+                                    MatrixXd &sigmaMatrix, double &product,
                                     Eigen::MatrixXd &Ctan, int ip)
 //--------------------------------------------------------------//
 {
@@ -70,6 +68,7 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
 
   // right C-G tensor
   C = F.transpose() * F;
+
   traC_ = C.trace();
   // Green strain　ラグランジュ・グリーンひずみテンソル
   E = 0.5 * (C - I);
@@ -96,7 +95,8 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
 
   if(fem.ndim == 2)
   {
-    // tensol -> vector */
+    /*
+    // tensol -> vector
     VectorXd strainvec = VectorXd::Zero(fem.voigt);
     strainvec[0] = E(0, 0);
     strainvec[1] = E(1, 1);
@@ -153,6 +153,9 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
     PK2_iso(1, 1) = sigmaVector_iso(1);
     sigmaMatrix_iso = kroneckerProduct(PK2_iso, I);
 
+
+
+
     // De matrix
     // make IJKL data
     MatrixXi IJdata = MatrixXi::Zero(fem.ndim, fem.ndim);
@@ -172,6 +175,8 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
 
     Ctan = MatrixXd::Zero(3, 3);
 
+    */
+
     for(int i = 0; i < 2; i++)
     {
       for(int j = 0; j < 2; j++)
@@ -181,6 +186,7 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
           for(int l = 0; l < 2; l++)
           {
 
+            /*
             double term_vol1 =
                 lambda * (jac - 1.0) * jac *
                 (C_inv(i, k) * C_inv(j, l) + (C_inv(i, l) * C_inv(j, k))) *
@@ -235,8 +241,9 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
 
               std::cout << "Ctan total = " << Ctan_vol + Ctan_iso << std::endl;
             }
+            */
 
-
+            /*
             Ctan(IJdata(i, j), IJdata(k, l)) =
                 A * C_inv(i, j) * C_inv(k, l) +
                 B * 0.5 *
@@ -248,14 +255,14 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
     }
 
     //----------------------- for S:E integration ------------------//
-    product += PK2(0, 0) * strainvec(0);
-    product += PK2(1, 1) * strainvec(1);
-    product += 0.5 * (PK2(0, 1) + PK2(1, 0)) * strainvec(2);
+    // product += PK2(0, 0) * strainvec(0);
+    // product += PK2(1, 1) * strainvec(1);
+    // product += 0.5 * (PK2(0, 1) + PK2(1, 0)) * strainvec(2);
     //--------------------------------------------------------------//
   }
   else // 3D
   {
-    /*
+
     // tensol -> vector
     VectorXd strainvec = VectorXd::Zero(fem.voigt);
     strainvec[0] = E(0, 0);
@@ -280,23 +287,31 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
     C_inv(2, 1) = (C(0, 1) * C(2, 0) - C(0, 0) * C(2, 1)) / jacC;
     C_inv(2, 2) = (C(0, 0) * C(1, 1) - C(0, 1) * C(1, 0)) / jacC;
 
-    sigmaVector(0) = (1.0 - current_D) * mu * (1.0 - C_inv(0, 0)) +
-                     lambda * jac * (jac - 1.0) * C_inv(0, 0);
-    sigmaVector(1) = (1.0 - current_D) * mu * (1.0 - C_inv(1, 1)) +
-                     lambda * jac * (jac - 1.0) * C_inv(1, 1);
-    sigmaVector(2) = (1.0 - current_D) * mu * (1.0 - C_inv(2, 2)) +
-                     lambda * jac * (jac - 1.0) * C_inv(2, 2);
-    sigmaVector(3) = (1.0 - current_D) * mu * (-C_inv(0, 1)) +
-                     lambda * jac * (jac - 1.0) * C_inv(0, 1);
-    sigmaVector(4) = (1.0 - current_D) * mu * (-C_inv(1, 2)) +
-                     lambda * jac * (jac - 1.0) * C_inv(1, 2);
-    sigmaVector(5) = (1.0 - current_D) * mu * (-C_inv(2, 0)) +
-                     lambda * jac * (jac - 1.0) * C_inv(2, 0);
-
     MatrixXd PK2 = MatrixXd::Zero(fem.ndim, fem.ndim);
-    PK2 << sigmaVector[0], sigmaVector[3], sigmaVector[5], // xx, xy, xz
-        sigmaVector[3], sigmaVector[1], sigmaVector[4],    // xy, yy, yz
-        sigmaVector[5], sigmaVector[4], sigmaVector[2];    // xz, yz, zz
+    MatrixXd PK2_original = MatrixXd::Zero(fem.ndim, fem.ndim);
+    MatrixXd PK2_iso = MatrixXd::Zero(fem.ndim, fem.ndim);
+    MatrixXd PK2_vol = MatrixXd::Zero(fem.ndim, fem.ndim);
+
+    for(int i = 0; i < 3; i++)
+    {
+      for(int j = 0; j < 3; j++)
+      {
+        PK2_iso(i, j) =
+            mu * jac_m23 * (I(i, j) - (1.0 / 3.0) * traC_ * C_inv(i, j));
+
+        PK2_vol(i, j) = lambda * jac * (jac - 1.0) * C_inv(i, j);
+
+        PK2_original(i, j) = PK2_iso(i, j) + PK2_vol(i, j);
+        PK2(i, j) = PK2_original(i, j) * (1.0 - current_D);
+      }
+    }
+
+    sigmaVector(0) = PK2(0, 0);
+    sigmaVector(1) = PK2(1, 1);
+    sigmaVector(2) = PK2(2, 2);
+    sigmaVector(3) = PK2(0, 1);
+    sigmaVector(4) = PK2(1, 2);
+    sigmaVector(5) = PK2(2, 0);
 
     sigmaMatrix = kroneckerProduct(PK2, I);
 
@@ -307,8 +322,15 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
         3, 1, 4,       // xy, yy, yz
         5, 4, 2;       // xz, yz, zz
 
-    double A = lambda * jac * (2.0 * jac - 1.0);
-    double B = 2.0 * (mu - lambda * jac * (jac - 1.0));
+    // double dD_dtau = differentiateD(tau);
+    double dD_dtau = 0.0;
+
+    double p = lambda * (1.0 - jac);
+
+    double A = lambda * jac * (2.0 * jac - 1.0);        // 体積弾性
+    double B = 2.0 * (mu - lambda * jac * (jac - 1.0)); // せん断弾性
+
+    Ctan = MatrixXd::Zero(6, 6);
 
     for(int i = 0; i < 3; i++)
     {
@@ -318,10 +340,43 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
         {
           for(int l = 0; l < 3; l++)
           {
+
+            double term_vol1 =
+                lambda * (2.0 * jac - 1.0) * jac * C_inv(i, j) * C_inv(k, l);
+            double term_vol2 =
+                -lambda * jac * (jac - 1.0) *
+                (C_inv(i, k) * C_inv(j, l) + C_inv(i, l) * C_inv(j, k));
+            double Ctan_vol_original =
+                (term_vol1 + term_vol2) * (1.0 - current_D);
+
+            double term_iso1 = -1.0 / 3.0 * C_inv(k, l) *
+                               (I(i, j) - 1.0 / 3.0 * traC_ * C_inv(i, j));
+            double term_iso2 =
+                -1.0 / 3.0 * I(k, l) * C_inv(i, j) +
+                1.0 / 6.0 * traC_ *
+                    (C_inv(i, k) * C_inv(j, l) + C_inv(i, l) * C_inv(j, k));
+            double Ctan_iso_original = 2.0 * mu * jac_m23 *
+                                       (term_iso1 + term_iso2) *
+                                       (1.0 - current_D);
+
+            double Ctan_damage = 0.0;
+            double tau_0 = 0.35;
+
+            if(tau > tau_0)
+            {
+              double Ctan_damage =
+                  -PK2_original(i, j) * dD_dtau * PK2(k, l) / (2.0 * tau);
+            }
+
+            Ctan(IJdata(i, j), IJdata(k, l)) =
+                Ctan_vol_original + Ctan_iso_original + Ctan_damage;
+
+            /*
             De_(IJdata(i, j), IJdata(k, l)) =
                 A * C_inv(i, j) * C_inv(k, l) +
                 (1.0 - current_D) * B * 0.5 *
                     (C_inv(i, k) * C_inv(j, l) + C_inv(i, l) * C_inv(j, k));
+                    */
           }
         }
       }
@@ -336,7 +391,24 @@ void neohookedamage::totalKirchhoff(FEM &fem, VectorXd &sigmaVector_vol,
     product += 0.5 * (PK2(1, 2) + PK2(2, 1)) * strainvec(4);
     product += 0.5 * (PK2(0, 2) + PK2(2, 0)) * strainvec(5);
     //--------------------------------------------------------------//
-    */
+
+    // calculate Cauchy von Mises
+    MatrixXd sigmaCauchy = (1.0 / jac) * F * PK2 * F.transpose();
+
+    // von Mises stress
+    double sigma_xx = sigmaCauchy(0, 0);
+    double sigma_yy = sigmaCauchy(1, 1);
+    double sigma_zz = sigmaCauchy(2, 2);
+
+    double sigma_xy = sigmaCauchy(0, 1);
+    double sigma_yz = sigmaCauchy(1, 2);
+    double sigma_zx = sigmaCauchy(2, 0);
+
+    mises_ = std::sqrt(0.5 * ((sigma_xx - sigma_yy) * (sigma_xx - sigma_yy) +
+                              (sigma_yy - sigma_zz) * (sigma_yy - sigma_zz) +
+                              (sigma_zz - sigma_xx) * (sigma_zz - sigma_xx)) +
+                       3.0 * (sigma_xy * sigma_xy + sigma_yz * sigma_yz +
+                              sigma_zx * sigma_zx));
   }
 }
 
@@ -410,14 +482,12 @@ void FiniteNeoHookedamage::makeKeFint(
     // nonlinear part
     MatrixXd F = MatrixXd::Zero(fem.ndim, fem.ndim);
     //  second piola-Kirchhoff stress tensor
-    MatrixXd sigmaMatrix_vol =
-        MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-    MatrixXd sigmaMatrix_iso =
+    MatrixXd sigmaMatrix =
         MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
     MatrixXd BeL = MatrixXd::Zero(fem.voigt, numdof);
     MatrixXd BeNL = MatrixXd::Zero(fem.ndim * fem.ndim, numdof);
-    VectorXd sigmaVector_vol = VectorXd::Zero(fem.voigt);
-    VectorXd sigmaVector_iso = VectorXd::Zero(fem.voigt);
+    MatrixXd PK2 = MatrixXd::Zero(fem.ndim, fem.ndim);
+    VectorXd sigmaVector = VectorXd::Zero(fem.voigt);
     MatrixXd Ctan = MatrixXd::Zero(fem.voigt, fem.voigt);
 
     // make bmatrix for finite strain
@@ -426,18 +496,17 @@ void FiniteNeoHookedamage::makeKeFint(
 
     double product = 0.0;
 
-    totalKirchhoff(fem, sigmaVector_vol, sigmaVector_iso, F, sigmaMatrix_vol,
-                   sigmaMatrix_iso, product, Ctan, ip);
+    totalKirchhoff(fem, PK2, sigmaVector, F, sigmaMatrix, product, Ctan, ip);
 
     Product_SE += product * w * jac;
     product_tempv[ip] = product;
 
     // inner stress(Bonet's book (9.15b))
-    nfe += BeL.transpose() * (sigmaVector_vol + sigmaVector_iso) * jac;
+    nfe += BeL.transpose() * sigmaVector * jac;
 
     // element stiffness matrix(Bonet's book (9.31),(9.35),(9.44c))
     nKe += BeL.transpose() * Ctan * BeL * jac +
-           BeNL.transpose() * (sigmaMatrix_vol + sigmaMatrix_iso) * BeNL * jac;
+           BeNL.transpose() * sigmaMatrix * BeNL * jac;
 
     volume += jac;
   }
@@ -524,11 +593,9 @@ void DynamicNeoHookedamage::makeKeMeFint(
     // second piola-Kirchhoff stress tensor
     MatrixXd BeL = MatrixXd::Zero(fem.voigt, numdof);
     MatrixXd BeNL = MatrixXd::Zero(fem.ndim * fem.ndim, numdof);
-    VectorXd sigmaVector_vol = VectorXd::Zero(fem.voigt);
-    VectorXd sigmaVector_iso = VectorXd::Zero(fem.voigt);
-    MatrixXd sigmaMatrix_vol =
-        MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-    MatrixXd sigmaMatrix_iso =
+    MatrixXd PK2 = MatrixXd::Zero(fem.ndim, fem.ndim);
+    VectorXd sigmaVector = VectorXd::Zero(fem.voigt);
+    MatrixXd sigmaMatrix =
         MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
     MatrixXd Ctan = MatrixXd::Zero(fem.voigt, fem.voigt);
 
@@ -537,16 +604,15 @@ void DynamicNeoHookedamage::makeKeMeFint(
     assert(jac > 0.0);
 
     double product = 0.0; // 積分点ごとのエネルギー
-    totalKirchhoff(fem, sigmaVector_vol, sigmaVector_iso, F, sigmaMatrix_vol,
-                   sigmaMatrix_iso, product, Ctan, ip);
+    totalKirchhoff(fem, PK2, sigmaVector, F, sigmaMatrix, product, Ctan, ip);
     product += product * w * jac;
 
     // inner stress(Bonet's book (9.15b))
-    nfe += BeL.transpose() * (sigmaVector_vol + sigmaVector_iso) * jac;
+    nfe += BeL.transpose() * sigmaVector * jac;
 
     // element stiffness matrix(Bonet's book (9.31),(9.35),(9.44c))
     nKe += BeL.transpose() * Ctan * BeL * jac +
-           BeNL.transpose() * (sigmaMatrix_vol + sigmaMatrix_iso) * BeNL * jac;
+           BeNL.transpose() * sigmaMatrix * BeNL * jac;
 
     volume += jac;
   }
@@ -636,15 +702,13 @@ void mHomoNeoHookedamage::makeKeHomo(vector<Triplet<double>> &tripletsK,
     jac = 1.0;
     MatrixXd F = MatrixXd::Zero(fem.ndim, fem.ndim);
     // second piola-Kirchhoff stress tensor
-    MatrixXd sigmaMatrix_vol =
-        MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-    MatrixXd sigmaMatrix_iso =
+    MatrixXd sigmaMatrix =
         MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
     MatrixXd Ctan = MatrixXd::Zero(fem.voigt, fem.voigt);
     MatrixXd BeL = MatrixXd::Zero(fem.voigt, numdof);
     MatrixXd BeNL = MatrixXd::Zero(fem.ndim * fem.ndim, numdof);
-    VectorXd sigmaVector_vol = VectorXd::Zero(fem.voigt);
-    VectorXd sigmaVector_iso = VectorXd::Zero(fem.voigt);
+    MatrixXd PK2 = MatrixXd::Zero(fem.ndim, fem.ndim);
+    VectorXd sigmaVector = VectorXd::Zero(fem.voigt);
 
     // make bmatrix
     bTotal.make(BeL, BeNL, Ne, jac, F, eType, ipmax, X, U, ip);
@@ -652,15 +716,14 @@ void mHomoNeoHookedamage::makeKeHomo(vector<Triplet<double>> &tripletsK,
 
     double product = 0.0;
 
-    totalKirchhoff(fem, sigmaVector_vol, sigmaVector_iso, F, sigmaMatrix_vol,
-                   sigmaMatrix_iso, product, Ctan, ip);
+    totalKirchhoff(fem, PK2, sigmaVector, F, sigmaMatrix, product, Ctan, ip);
 
     // inner stress(Bonet's book (9.15b))
-    nfe += BeL.transpose() * (sigmaVector_vol + sigmaVector_iso) * jac;
+    nfe += BeL.transpose() * sigmaVector * jac;
 
     // element stiffness matrix(Bonet's book (9.31),(9.35),(9.44c))
     nKe += BeL.transpose() * Ctan * BeL * jac +
-           BeNL.transpose() * (sigmaMatrix_vol + sigmaMatrix_iso) * BeNL * jac;
+           BeNL.transpose() * sigmaMatrix * BeNL * jac;
   }
 
   // element stiffness matrix(Bonet's book (9.31),(9.35),(9.44c))
@@ -704,16 +767,14 @@ void mHomoNeoHookedamage::makeMicroValues(FEM &fem, vector<HomoNode> &nodes)
     MatrixXd Ne = MatrixXd::Zero(fem.ndim, fem.ndim * ne); // 初期化
     MatrixXd F = MatrixXd::Zero(fem.ndim, fem.ndim);
     // second piola-Kirchhoff stress tensor
-    MatrixXd sigmaMatrix_vol =
-        MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-    MatrixXd sigmaMatrix_iso =
+    MatrixXd sigmaMatrix =
         MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
     MatrixXd Ctan = MatrixXd::Zero(fem.voigt, fem.voigt);
     MatrixXd BeL = MatrixXd::Zero(fem.voigt, numdof);
     MatrixXd BeNL = MatrixXd::Zero(fem.ndim * fem.ndim, numdof);
     // stess for internal force
-    VectorXd sigmaVector_vol = VectorXd::Zero(fem.voigt);
-    VectorXd sigmaVector_iso = VectorXd::Zero(fem.voigt);
+    MatrixXd PK2 = MatrixXd::Zero(fem.ndim, fem.ndim);
+    VectorXd sigmaVector = VectorXd::Zero(fem.voigt);
 
     bmatrix.make(BeL, BeNL, Ne, jac, F, eType, ipmax, X, U, ip);
     // input: x,u,ip積分点番号,ipmax,etype要素の種類,
@@ -721,8 +782,7 @@ void mHomoNeoHookedamage::makeMicroValues(FEM &fem, vector<HomoNode> &nodes)
 
     double product = 0.0;
 
-    totalKirchhoff(fem, sigmaVector_vol, sigmaVector_iso, F, sigmaMatrix_vol,
-                   sigmaMatrix_iso, product, Ctan, ip);
+    totalKirchhoff(fem, PK2, sigmaVector, F, sigmaMatrix, product, Ctan, ip);
 
     MatrixXd mstrain = BeL * disps;
     volume += jac;
