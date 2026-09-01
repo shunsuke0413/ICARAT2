@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
   double eta = 0.5;
   double beta1 = 50.0;
   double rho0 = 0.1;
-  double tolNR = 1.0e-6;
+  double tolNR = 1.0e-4;
   int iterNR = 100;
 
   // set input file
@@ -125,13 +125,38 @@ int main(int argc, char *argv[])
 
     compt.initialization();
 
+#include <fstream>
+
+    std::ofstream fout("load_displacement.csv");
+
+    fout << "displacement,force\n";
+    addPlot(0.0, 0.0, "load_displacement.csv", 0);
+
     std::vector<double> sum_f(numstep, 0);
     for(int loadStep = 1; loadStep < numstep + 1; loadStep++)
     {
       cout << "---------- load-step No. " << loadStep << " ----------" << endl;
 
       compt.solve(loadStep, numstep, tolNR, iterNR, "Eigen_LDLT", 0);
+
+      double totalReactionY = 0.0;
+
+      // ここで上縁節点の反力を合計
+      for(int i = 0; i < node.size(); i++)
+      {
+        if(std::abs(node[i].x[1] - 100.0) < 1.0e-8)
+        {
+          totalReactionY += node[i].reaction[1];
+        }
+      }
+
+      double control_ID = 4650;
+      double displacement = node[control_ID].val[1];
+
+      addPlot(displacement, totalReactionY, "load_displacement.csv", 0);
     }
+
+    fout.close();
 
     for(auto &e : element)
       e.makeMisesStress(fem, node);
@@ -239,8 +264,9 @@ void output(FEM &fem, vector<FiniteNeoHookedamage> &element, vector<Node> &node,
   }
   // ------------------------------------------
 
-  //for reaction stress
-  fout << "VECTORS reaction float" << std::endl;
+  // for reaction stress
+  /*
+  fout << "VECTORS reaction float" << std::endl;//反力計算用一旦省略
   for(int i = 0; i < node.size(); i++) {
       // もし node[i] が固定境界であれば、その節点の反力を出力
       // 固定でなければ 0.0 0.0 0.0 を出力
@@ -250,8 +276,8 @@ void output(FEM &fem, vector<FiniteNeoHookedamage> &element, vector<Node> &node,
           fout << "0.0 0.0 0.0" << endl;
       }
   }
+  */
 
-  
   // make grid
   // setPointVTK(node, fout);
   setElementVTK(element, fout);
