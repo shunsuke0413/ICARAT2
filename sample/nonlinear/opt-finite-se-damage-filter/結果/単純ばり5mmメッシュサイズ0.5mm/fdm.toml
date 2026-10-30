@@ -1,0 +1,36 @@
+[mesh]
+dimension = 3
+division = [60, 20, 20]
+length = [30.0, 10.0, 10.0]
+type = "hexa8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 0.0], [0.0, 10.0], [0.0, 10.0]]],
+  [[0, 1, 0, 0, 0, 0], [0.0, -5.0, 0.0, 0.0, 0.0, 0.0], [[29.0, 30.0], [0.0, 0.0], [0.0, 10.0]]],
+]
+
+neumann = [
+  # [[0.0, 0.0, 0.0], [[0.0, 300.0], [200.0, 200.0], [0.0, 1.0]]],
+]
+
+[material]
+designs_0 = 1.0
+penalty = 3.0
+poisson = 0.37
+state = "plane_strain"
+type = "Elastic"
+young = [0.01, 1156.0] 
+
+[this_problem]
+fdm = false
+filterR = 5.0
+numstep = 50
+
+[load_displacement]
+direction = "Y"
+observation_point = [30.0, 0.0, 0.0]
+
+reaction_axis = "X"
+reaction_coordinate = 0.0
+reaction_direction = "Y"
