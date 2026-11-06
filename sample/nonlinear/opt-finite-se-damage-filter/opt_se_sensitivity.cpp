@@ -1,334 +1,205 @@
 #include "neo_hooke_damage.hpp"
-#include <Eigen/Sparse>
-#include <analysis/newton_raphson.hpp>
+#include <Eigen/SparseLU>
 #include <basis/bmatrix.hpp>
 #include <basis/bmatrix_total.hpp>
-#include <basis/bmatrix_updated.hpp>
-#include <misc/assembling.hpp>
-#include <optimization/opt_base.hpp>
-#include <problem/elasticity.hpp>
+#include <cmath>
+#include <stdexcept>
 
 namespace icarat
 {
-namespace opt_finite_strain
+namespace opt_finite_se_damage_filter
 {
-using namespace std;
 using namespace Eigen;
+using namespace std;
 
-void calCFJ(FEM &fem, MatrixXd &C, MatrixXd &C_inv, MatrixXd &F,
-            MatrixXd &F_inv, double &J)
+void calCFJ(FEM &, MatrixXd &C, MatrixXd &C_inv, MatrixXd &F, MatrixXd &F_inv,
+            double &J)
 {
-  // right C-G tensor
   C = F.transpose() * F;
+  C_inv = C.inverse();
+  F_inv = F.inverse();
   J = F.determinant();
-
-  // cal inverse of C
-  if(fem.ndim == 2)
-  {
-    C_inv = C.inverse();
-    F_inv = F.inverse();
-  }
-  else // 3D
-  {
-    C_inv = C.inverse();
-    F_inv = F.inverse();
-  }
 }
 
+namespace
+{
+VectorXd stressVoigt(const MatrixXd &S)
+{
+  VectorXd v(6);
+  v << S(0, 0), S(1, 1), S(2, 2), S(0, 1), S(1, 2), S(2, 0);
+  return v;
+}
+} // namespace
+
+// Conditional sensitivity of -integral(S:E), with D_all_ held fixed.
+// tau is filtered BEFORE each load step and held fixed during the NR solve.
+// Differentiating the entire loading path requires a separate history adjoint;
+// the final K alone cannot supply derivatives of those previous states.
 void sensitivity(FEM &fem, vector<FiniteNeoHookedamage> &element,
                  vector<Node> &node, Value &value,
-                 const Eigen::SparseMatrix<double> &K, Optimize &optim,
-                 double V0, std::vector<double> &fil_gamma, double poisson)
+                 const SparseMatrix<double> &K, Optimize &optim, double V0,
+                 vector<double> &fil_gamma, double poisson)
 {
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /// 1. cal dSigmadu
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  vector<VectorXd> eledSigmadu(fem.nelx);
+  (void)value; // Do not overwrite the converged primal displacement.
+  (void)K; // Its damage tangent is not the derivative at fixed filtered tau.
+  if(fem.ndim != 3 || fem.voigt != 6)
+    throw runtime_error(
+        "Damage sensitivity requires the implemented 3D stress model.");
+  if(!(V0 > 0.0) || fil_gamma.size() != element.size())
+    throw runtime_error("Invalid reference volume or gamma derivative size.");
 
-  Gauss9Square gauss;
-  if(fem.ndim == 3)
+  vector<VectorXd> forceRho(fem.nelx);
+  VectorXd objectiveRho = VectorXd::Zero(fem.nelx);
+  VectorXd objectiveU = VectorXd::Zero(fem.numeq);
+  vector<Triplet<double>> triplets;
+  const MatrixXd I = MatrixXd::Identity(3, 3);
+  Gauss9Square gauss; // Match the objective weights in makeKeFint exactly.
+
+  for(int nel = 0; nel < fem.nelx; ++nel)
   {
-    Gauss8Cubic gauss;
+    auto &e = element[nel];
+    // The forward implementation uses Gauss9Square weights even in 3D.
+    if(e.ipmax > 9 || e.D_all_.size() != static_cast<size_t>(e.ipmax))
+      throw runtime_error("Unsupported quadrature or missing damage state.");
+    const double rho = e.design_s();
+    const double young =
+        e.young1() + pow(rho, e.pp()) * (e.young2() - e.young1());
+    if(!(young > 0.0))
+      throw runtime_error("Nonpositive interpolated Young's modulus.");
+    const double ratio =
+        e.pp() * pow(rho, e.pp() - 1.0) * (e.young2() - e.young1()) / young;
+    const double mu = young / (2.0 * (1.0 + poisson));
+    const double kappa =
+        poisson * young / ((1.0 + poisson) * (1.0 - 2.0 * poisson)) +
+        2.0 * mu / 3.0;
+    const double gamma = e.gamma();
+    const double dgamma = fil_gamma[nel];
+    MatrixXd X(e.ne, 3), U(e.ne, 3);
+    VectorXd u(e.numdof);
+    vector<int> dofs(e.numdof);
+    for(int i = 0; i < e.ne; ++i)
+      for(int j = 0; j < 3; ++j)
+      {
+        const int s = 3 * i + j;
+        X(i, j) = node[e.nodeID[i]].x[j];
+        u(s) = node[e.nodeID[i]].val[j];
+        U(i, j) = gamma * u(s);
+        dofs[s] = node[e.nodeID[i]].dof[j];
+      }
+
+    MatrixXd nonlinearK = MatrixXd::Zero(e.numdof, e.numdof);
+    MatrixXd linearK = nonlinearK;
+    VectorXd nonlinearForce = VectorXd::Zero(e.numdof);
+    VectorXd productU = nonlinearForce;
+    double product = 0.0;
+    BmatrixTotal total;
+    Bmatrix linear;
+    for(int ip = 0; ip < e.ipmax; ++ip)
+    {
+      double jac = 0.0;
+      MatrixXd N(3, e.numdof), BL(6, e.numdof), BNL(9, e.numdof), F(3, 3);
+      total.make(BL, BNL, N, jac, F, e.eType, e.ipmax, X, U, ip);
+      const double J = F.determinant();
+      if(!(jac > 0.0) || !(J > 0.0))
+        throw runtime_error("Invalid deformation in damage sensitivity.");
+      const MatrixXd C = F.transpose() * F;
+      const MatrixXd Cinv = C.inverse();
+      const MatrixXd Finv = F.inverse();
+      const MatrixXd strain = 0.5 * (C - I);
+      const double a = pow(J, -2.0 / 3.0);
+      const double damageFactor = 1.0 - e.D_all_[ip];
+      const MatrixXd S = damageFactor * (mu * a * (I - C.trace() / 3.0 * Cinv) +
+                                         kappa * J * (J - 1.0) * Cinv);
+      const VectorXd sv = stressVoigt(S);
+      const double weight = gauss.weights(ip);
+      product += (S.array() * strain.array()).sum() * weight * jac;
+      // makeKeFint uses jac alone for forces and stiffness, but w*jac for S:E.
+      nonlinearForce += BL.transpose() * sv * jac;
+      for(int s = 0; s < e.numdof; ++s)
+      {
+        // The library's 3D makeDifferential does not populate dF and uses
+        // 2D indices for dBL. Recover reference gradients from BNL instead.
+        MatrixXd dBL = MatrixXd::Zero(6, e.numdof);
+        MatrixXd dF = MatrixXd::Zero(3, 3);
+        for(int k = 0; k < 3; ++k)
+          dF(s % 3, k) = BNL(3 * k, 3 * (s / 3));
+        const int vi[6] = {0, 1, 2, 0, 1, 2};
+        const int vj[6] = {0, 1, 2, 1, 2, 0};
+        for(int t = 0; t < e.numdof; ++t)
+          for(int v = 0; v < 6; ++v)
+          {
+            const int i = vi[v], j = vj[v];
+            dBL(v, t) = dF(t % 3, i) * BNL(3 * j, 3 * (t / 3));
+            if(i != j)
+              dBL(v, t) += dF(t % 3, j) * BNL(3 * i, 3 * (t / 3));
+          }
+        const MatrixXd dC = dF.transpose() * F + F.transpose() * dF;
+        const MatrixXd dCinv = -Cinv * dC * Cinv;
+        const double dJ = J * (Finv * dF).trace();
+        const MatrixXd dS =
+            damageFactor *
+            (mu * a *
+                 (-2.0 / 3.0 * dJ / J * (I - C.trace() / 3.0 * Cinv) -
+                  dC.trace() / 3.0 * Cinv - C.trace() / 3.0 * dCinv) +
+             kappa * ((2.0 * J - 1.0) * dJ * Cinv + J * (J - 1.0) * dCinv));
+        productU(s) += ((dS.array() * strain.array()).sum() +
+                        0.5 * (S.array() * dC.array()).sum()) *
+                       weight * jac;
+        nonlinearK.col(s) +=
+            (dBL.transpose() * sv + BL.transpose() * stressVoigt(dS)) * jac;
+      }
+      MatrixXd B(6, e.numdof), D(6, 6);
+      linear.make(B, N, jac, e.eType, e.ipmax, X, ip);
+      e.De(D, young, poisson);
+      linearK += B.transpose() * D * B * jac;
+    }
+
+    const VectorXd linearForce = linearK * u;
+    const VectorXd force =
+        gamma * nonlinearForce + (1.0 - gamma * gamma) * linearForce;
+    forceRho[nel] =
+        ratio * force + dgamma * (nonlinearForce + gamma * nonlinearK * u -
+                                  2.0 * gamma * linearForce);
+    objectiveRho(nel) = ratio * product + dgamma * productU.dot(u);
+    const MatrixXd tangent =
+        gamma * gamma * nonlinearK + (1.0 - gamma * gamma) * linearK;
+    for(int s = 0; s < e.numdof; ++s)
+      if(dofs[s] >= 0 && dofs[s] < fem.numeq)
+      {
+        objectiveU(dofs[s]) += gamma * productU(s);
+        for(int t = 0; t < e.numdof; ++t)
+          if(dofs[t] >= 0 && dofs[t] < fem.numeq)
+            triplets.emplace_back(dofs[s], dofs[t], tangent(s, t));
+      }
   }
 
-  std::vector<double> dPdgamma_vec(fem.nelx, 0.0);
-  for(int nel = 0; nel < fem.nelx; nel++)
+  SparseMatrix<double> tangent(fem.numeq, fem.numeq);
+  tangent.setFromTriplets(triplets.begin(), triplets.end());
+  SparseMatrix<double> transpose = tangent.transpose();
+  SparseLU<SparseMatrix<double>> solver;
+  solver.compute(transpose);
+  if(solver.info() != Success)
+    throw runtime_error("Damage sensitivity adjoint factorization failed: " +
+                        solver.lastErrorMessage());
+  const VectorXd adjoint = solver.solve(objectiveU);
+  if(solver.info() != Success || !adjoint.allFinite())
+    throw runtime_error("Damage sensitivity adjoint solve failed.");
+
+  for(int nel = 0; nel < fem.nelx; ++nel)
   {
-    double dens = element[nel].design_s();
-    double young1 = element[nel].young1();
-    double young2 = element[nel].young2();
-    double p = element[nel].pp();
-
-    // SIMP
-    double young = (1.0 - pow(dens, p)) * young1 + pow(dens, p) * young2;
-
-    double mu = 0.5 * young / (1 + poisson);
-    double lambda =
-        (poisson * young) / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
-
-    eledSigmadu[nel].resize(element[nel].numdof);
-
-    MatrixXd X = MatrixXd::Zero(element[nel].ne, fem.ndim);
-    MatrixXd U = MatrixXd::Zero(element[nel].ne, fem.ndim);
-    VectorXd disEle = VectorXd::Zero(element[nel].numdof);
-
-    for(int i = 0; i < element[nel].ne; i++)
-    {
-      for(int j = 0; j < fem.ndim; j++)
+    const auto &e = element[nel];
+    double indirect = 0.0;
+    for(int i = 0; i < e.ne; ++i)
+      for(int j = 0; j < 3; ++j)
       {
-        X.coeffRef(i, j) = node[element[nel].nodeID[i]].x[j];
-        U.coeffRef(i, j) =
-            element[nel].gamma() * node[element[nel].nodeID[i]].val[j];
-        disEle.coeffRef(fem.ndim * i + j) = node[element[nel].nodeID[i]].val[j];
+        const int dof = node[e.nodeID[i]].dof[j];
+        // Prescribed displacements have zero adjoint, including nonzero BCs.
+        if(dof >= 0 && dof < fem.numeq)
+          indirect += adjoint(dof) * forceRho[nel](3 * i + j);
       }
-    }
-
-    VectorXd dPdU = VectorXd::Zero(element[nel].numdof);
-
-    for(int s = 0; s < element[nel].numdof; s++)
-    {
-      BmatrixTotal bTotal;
-      double dSigmadu = 0.0;
-
-      for(int ip = 0; ip < element[nel].ipmax; ip++)
-      {
-        VectorXd r = gauss.points(ip);
-        double w = gauss.weights(ip);
-        double jac = 1.0;
-        MatrixXd Ne = MatrixXd::Zero(fem.ndim, fem.ndim * element[nel].ne);
-        MatrixXd F = MatrixXd::Zero(fem.ndim, fem.ndim);
-        MatrixXd F_inv = MatrixXd::Zero(fem.ndim, fem.ndim);
-        MatrixXd dFdu = MatrixXd::Zero(fem.ndim, fem.ndim);
-        MatrixXd BeL = MatrixXd::Zero(fem.voigt, element[nel].numdof);
-        MatrixXd dBLdu = MatrixXd::Zero(fem.voigt, element[nel].numdof);
-        MatrixXd BeNL =
-            MatrixXd::Zero(fem.ndim * fem.ndim, element[nel].numdof);
-        double dJdu = 0.0;
-
-        bTotal.make(BeL, BeNL, Ne, jac, F, element[nel].eType,
-                    element[nel].ipmax, X, U, ip);
-        bTotal.makeDifferential(dBLdu, dFdu, dJdu, element[nel].eType,
-                                element[nel].ipmax, X, U, ip, s);
-        assert(jac > 0.0);
-
-        MatrixXd I = MatrixXd::Identity(fem.ndim, fem.ndim);
-        MatrixXd C = MatrixXd::Zero(fem.ndim, fem.ndim);
-        MatrixXd C_inv = MatrixXd::Zero(fem.ndim, fem.ndim);
-        MatrixXd D = MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-        MatrixXd E = MatrixXd::Zero(fem.ndim * fem.ndim, fem.ndim * fem.ndim);
-        double J = 0.0;
-        calCFJ(fem, C, C_inv, F, F_inv, J);
-
-        MatrixXd E_mat = 0.5 * (C - I);
-        MatrixXd S_mat = mu * (I - C_inv) + lambda * J * (J - 1.0) * C_inv;
-
-        double dSdutmp = 0.0;
-        for(int m = 0; m < fem.ndim; m++)
-        {
-          for(int n = 0; n < fem.ndim; n++)
-          {
-            double dSE_dFmn = 0.0;
-            for(int k = 0; k < fem.ndim; k++)
-            {
-              for(int l = 0; l < fem.ndim; l++)
-              {
-                double dE_dF =
-                    0.5 * ((l == n ? F(m, k) : 0.0) + (k == n ? F(m, l) : 0.0));
-
-                double dCinv_dF = -C_inv(k, n) * F_inv.transpose()(m, l) -
-                                  F_inv.transpose()(m, k) * C_inv(n, l);
-
-                double dS_dF = (lambda * J * (J - 1.0) - mu) * dCinv_dF +
-                               lambda * (2.0 * J - 1.0) * J *
-                                   F_inv.transpose()(m, n) * C_inv(k, l);
-
-                dSE_dFmn += dS_dF * E_mat(k, l) + S_mat(k, l) * dE_dF;
-              }
-            }
-            dSdutmp += dSE_dFmn * dFdu(m, n) * w * jac;
-          }
-        }
-        dSigmadu += dSdutmp;
-
-        /*for(int k = 0; k < fem.ndim; k++)
-        {
-          for(int l = 0; l < fem.ndim; l++)
-          {
-            for(int m = 0; m < fem.ndim; m++)
-            {
-              for(int n = 0; n < fem.ndim; n++)
-              {
-                int idx_S = k * fem.ndim + l;
-                int idx_F = m * fem.ndim + n;
-
-                double first_term = 0.0;
-                double dEdu = 0.0;
-                for(int o = 0; o < fem.ndim; o++)
-                {
-                  for(int p = 0; p < fem.ndim; p++)
-                  {
-                    first_term +=
-                        -C_inv(k, o) * (F(o, p) + F(o, p)) * C_inv(p, l);
-                    dEdu += (o == m ? F(n, p) : 0) + (n == p ? F(m, o) : 0);
-                  }
-                }
-                first_term *= (-mu + lambda * J * (J - 1));
-                dEdu *= 0.5;
-
-                double second_term = lambda * (2 * J - 1) * J *
-                                     F_inv.transpose()(m, n) * C_inv(k, l);
-
-                D(idx_S, idx_F) = first_term / element[nel].ipmax +
-                                  second_term / element[nel].ipmax;
-
-                E(idx_S, idx_F) = dEdu / element[nel].ipmax;
-              }
-            }
-          }
-        }
-
-        double dSdutmp = 0.0;
-        for(int k = 0; k < fem.ndim; k++)
-        {
-          for(int l = 0; l < fem.ndim; l++)
-          {
-            int idx_S = k * fem.ndim + l;
-            for(int m = 0; m < fem.ndim; m++)
-            {
-              for(int n = 0; n < fem.ndim; n++)
-              {
-                int idx_F = m * fem.ndim + n;
-                dSdutmp += D(idx_S, idx_F) * dFdu(m, n) * 0.5 *
-                               (C(m, n) - I(m, n)) * w * jac +
-                           E(idx_S, idx_F) * dFdu(m, n) *
-                               (mu * (I(m, n) - C_inv(m, n)) +
-                                lambda * J * (J - 1) * C_inv(m, n)) *
-                               w * jac;
-              }
-            }
-          }
-        }
-
-        dSigmadu += dSdutmp;*/
-      }
-
-      dPdU(s) = dSigmadu;
-      eledSigmadu[nel].coeffRef(s) = element[nel].gamma() * dSigmadu;
-      // eledSigmadu[nel].coeffRef(s) = dSigmadu;
-    }
-    dPdgamma_vec[nel] = dPdU.dot(disEle);
-  }
-
-  VectorXd dSigmadu_nodetmp = elementToNumeq<FiniteNeoHookedamage, Node>(
-      fem, element, node, eledSigmadu);
-  VectorXd dSigmadu_node = dSigmadu_nodetmp;
-
-  cout << "---- computing adjoint vector ----" << endl;
-  Solvers solver(K, dSigmadu_node, value.val);
-  solver.solve("Eigen_CG", 0);
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /// 2. cal dSigmadrho
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  VectorXd dSigmadrho(fem.nelx);
-  for(int nelj = 0; nelj < fem.nelx; nelj++)
-  {
-    double dens = element[nelj].design_s();
-    double young1 = element[nelj].young1();
-    double young2 = element[nelj].young2();
-    double p = element[nelj].pp();
-    double young = (1.0 - pow(dens, p)) * young1 + pow(dens, p) * young2;
-    double dyoung = p * pow(dens, p - 1.0) * (young2 - young1);
-    double E = dyoung / young;
-
-    MatrixXd X = MatrixXd::Zero(element[nelj].ne, fem.ndim);
-    MatrixXd U = MatrixXd::Zero(element[nelj].ne, fem.ndim);
-    for(int i = 0; i < element[nelj].ne; i++)
-    {
-      for(int j = 0; j < fem.ndim; j++)
-      {
-        X(i, j) = node[element[nelj].nodeID[i]].x[j];
-        U(i, j) = element[nelj].gamma() * node[element[nelj].nodeID[i]].val[j];
-      }
-    }
-
-    double S_E = 0.0;
-    for(int ip = 0; ip < element[nelj].ipmax; ip++)
-    {
-      VectorXd r = gauss.points(ip);
-      double w = gauss.weights(ip);
-      double jac = 1.0;
-      MatrixXd Ne = MatrixXd::Zero(fem.ndim, element[nelj].numdof);
-      MatrixXd F = MatrixXd::Zero(fem.ndim, fem.ndim);
-      MatrixXd F_inv = MatrixXd::Zero(fem.ndim, fem.ndim);
-      MatrixXd BeL = MatrixXd::Zero(fem.voigt, element[nelj].numdof);
-      MatrixXd BeNL = MatrixXd::Zero(fem.ndim * fem.ndim, element[nelj].numdof);
-
-      BmatrixTotal bTotal;
-      bTotal.make(BeL, BeNL, Ne, jac, F, element[nelj].eType,
-                  element[nelj].ipmax, X, U, ip);
-      assert(jac > 0.0);
-
-      MatrixXd I = MatrixXd::Identity(fem.ndim, fem.ndim);
-      MatrixXd C = MatrixXd::Zero(fem.ndim, fem.ndim);
-      MatrixXd C_inv = MatrixXd::Zero(fem.ndim, fem.ndim);
-      double J = 0.0;
-      calCFJ(fem, C, C_inv, F, F_inv, J);
-
-      MatrixXd E_mat = 0.5 * (C - I);
-      S_E += element[nelj].product_tempv[ip] * w * jac;
-    }
-    // dSigmadrho(nelj) = E * S_E;
-    dSigmadrho(nelj) = E * S_E + dPdgamma_vec[nelj] * fil_gamma[nelj];
-  }
-
-  for(int nel = 0; nel < fem.nelx; nel++)
-  {
-    double dens = element[nel].design_s();
-    double young1 = element[nel].young1();
-    double young2 = element[nel].young2();
-    double p = element[nel].pp();
-    double young = (1.0 - pow(dens, p)) * young1 + pow(dens, p) * young2;
-    double dyoung = p * pow(dens, p - 1.0) * (young2 - young1);
-    double E = dyoung / young;
-
-    VectorXd valEle = VectorXd::Zero(element[nel].numdof);
-    VectorXd disEle = VectorXd::Zero(element[nel].numdof);
-    for(int i = 0; i < element[nel].ne; i++)
-    {
-      for(int j = 0; j < fem.ndim; j++)
-      {
-        int dof = node[element[nel].nodeID[i]].dof[j];
-        if(dof < fem.numeq)
-        {
-          valEle(fem.ndim * i + j) = value.val[dof];
-        }
-        else
-        {
-          valEle(fem.ndim * i + j) =
-              node[element[nel].nodeID[i]].dirich->val[j];
-          if(node[element[nel].nodeID[i]].dirich->flag[j] == 1)
-          {
-            valEle(fem.ndim * i + j) = 0.0;
-          }
-          disEle(fem.ndim * i + j) = node[element[nel].nodeID[i]].val[j];
-        }
-      }
-    }
-
-    VectorXd fe_rho = element[nel].gamma() * element[nel].nfe() +
-                      (1.0 - element[nel].gamma() * element[nel].gamma()) *
-                          element[nel].lfe();
-    VectorXd fe_gamma = element[nel].nfe() +
-                        element[nel].nKe() * disEle * element[nel].gamma() -
-                        2.0 * element[nel].gamma() * element[nel].lfe();
-
-    double indirect =
-        valEle.transpose() * (E * fe_rho + fe_gamma * fil_gamma[nel]);
-
-    optim.dfds[nel] = -dSigmadrho(nel) + indirect;
-    optim.dgds[nel] = element[nel].volume / V0;
+    optim.dfds[nel] = -objectiveRho(nel) + indirect;
+    optim.dgds[nel] = e.volume / V0;
   }
 }
-} // namespace opt_finite_strain
+} // namespace opt_finite_se_damage_filter
 } // namespace icarat
