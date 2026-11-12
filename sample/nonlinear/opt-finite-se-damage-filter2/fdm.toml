@@ -1,0 +1,48 @@
+[mesh]
+dimension = 3
+division = [121, 53, 2]
+length = [60.5, 26.5, 1.0]
+type = "hexa8"
+
+[boundary_condition]
+dirichlet = [
+  [[1, 1, 0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 60.5], [0.0, 0.0], [0.0, 1.0]]],
+  [[0, 0, 1, 0, 0, 0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 60.5], [0.5, 26.0], [0.5, 0.5]]],
+  [[1, 1, 0, 0, 0, 0], [0.0, -5.0, 0.0, 0.0, 0.0, 0.0], [[0.0, 60.5], [26.5, 26.5], [0.0, 1.0]]],
+]
+
+neumann = [
+  # [[0.0, 0.0, 0.0], [[0.0, 300.0], [200.0, 200.0], [0.0, 1.0]]],
+]
+
+[material]
+designs_0 = 0.4
+penalty = 3.0
+poisson = 0.37
+state = "plane_strain"
+type = "Elastic"
+young = [0.01, 1156.0] 
+
+[this_problem]
+# Fixed projection coefficient; no automatic continuation.
+beta = 1.0
+fdm = false
+# Number of accepted/evaluated designs (initial design counts as step 1).
+optimization_steps = 50
+move_limit = 0.05
+# Retry a failed design update from the last accepted design and MMA history.
+design_retry_limit = 6
+move_shrink = 0.5
+min_move_limit = 0.0005
+nr_max_iter = 100
+filterR = 2.0
+# Fixed number of displacement/load increments; no automatic refinement.
+numstep = 20
+
+[load_displacement]
+direction = "Y"
+observation_point = [30.0, 26.5, 0.5]
+
+reaction_axis = "Y"
+reaction_coordinate = 0.0
+reaction_direction = "Y"
